@@ -389,9 +389,9 @@ export async function searchMarkets(
 ```typescript
 import { useMemo, useCallback } from 'react'
 
-// GOOD: Memoize expensive computations
+// GOOD: Memoize expensive computations (spread to avoid mutation)
 const sortedMarkets = useMemo(() => {
-  return markets.sort((a, b) => b.volume - a.volume)
+  return [...markets].sort((a, b) => b.volume - a.volume)
 }, [markets])
 
 // GOOD: Memoize callbacks
