@@ -5,6 +5,154 @@ description: Backend architecture patterns, API design, database optimization, a
 
 # Go Backend Development Patterns
 
+## Constants & Configuration
+
+### Avoid Magic Numbers
+
+Never hardcode configuration values directly in code. Use named constants with meaningful names that explain their purpose.
+
+```go
+// BAD: Magic numbers scattered in code
+func (s *Server) process(ctx context.Context) error {
+    ctx, cancel := context.WithTimeout(ctx, 30*time.Second)  // What is 30?
+    defer cancel()
+    return s.repo.FetchWithLimit(ctx, 100)  // Why 100?
+}
+
+// GOOD: Named constants explain intent
+const (
+    DefaultRequestTimeout = 30 * time.Second
+    DefaultFetchLimit     = 100
+)
+
+func (s *Server) process(ctx context.Context) error {
+    ctx, cancel := context.WithTimeout(ctx, DefaultRequestTimeout)
+    defer cancel()
+    return s.repo.FetchWithLimit(ctx, DefaultFetchLimit)
+}
+```
+
+### When to Centralize Constants
+
+Use a dedicated `const.go` file when constants are:
+- Shared across multiple files in a package
+- Configuration values that may need tuning
+- Part of the package's public API
+
+**Important**: Exported constants must have documentation comments starting with the constant name. This is required by `golint` and enables `go doc` to generate proper documentation.
+
+```go
+// const.go - Package-level configuration constants
+package server
+
+import "time"
+
+// DefaultRequestTimeout is the maximum duration for processing HTTP requests.
+const DefaultRequestTimeout = 30 * time.Second
+
+// DefaultShutdownTimeout is the maximum duration to wait for graceful shutdown.
+const DefaultShutdownTimeout = 30 * time.Second
+
+// DefaultHealthTimeout is the maximum duration for health check probes.
+const DefaultHealthTimeout = 5 * time.Second
+
+// DefaultJobTimeout is the maximum duration for background job execution.
+const DefaultJobTimeout = 30 * time.Second
+
+// Connection pool settings.
+const (
+    // DefaultMaxOpenConns is the maximum number of open database connections.
+    DefaultMaxOpenConns = 25
+    // DefaultMaxIdleConns is the maximum number of idle database connections.
+    DefaultMaxIdleConns = 5
+    // DefaultConnMaxLifetime is the maximum duration a connection may be reused.
+    DefaultConnMaxLifetime = 5 * time.Minute
+    // DefaultConnMaxIdleTime is the maximum duration a connection may be idle.
+    DefaultConnMaxIdleTime = 1 * time.Minute
+)
+
+// Pagination limits.
+const (
+    // DefaultPageSize is the default number of items per page.
+    DefaultPageSize = 20
+    // MaxPageSize is the maximum allowed items per page.
+    MaxPageSize = 100
+)
+
+// Retry and rate limiting settings.
+const (
+    // DefaultRetryCount is the default number of retry attempts.
+    DefaultRetryCount = 3
+    // DefaultBurstLimit is the default burst size for rate limiting.
+    DefaultBurstLimit = 10
+)
+
+// Cache TTL settings.
+const (
+    // DefaultCacheTTL is the default cache entry time-to-live.
+    DefaultCacheTTL = 5 * time.Minute
+    // ShortCacheTTL is used for frequently changing data.
+    ShortCacheTTL = 1 * time.Minute
+    // LongCacheTTL is used for stable, rarely changing data.
+    LongCacheTTL = 1 * time.Hour
+)
+```
+
+### Keep Local When Specific
+
+Constants used only within a single function or closely related code should stay local:
+
+```go
+// errors.go - Domain errors are kept with related code
+var (
+    // ErrNotFound is returned when the requested resource does not exist.
+    ErrNotFound = errors.New("not found")
+    // ErrUnauthorized is returned when authentication is required but missing.
+    ErrUnauthorized = errors.New("unauthorized")
+)
+
+// permissions.go - Permission constants stay with RBAC code
+
+// Permission represents an access control permission level.
+type Permission string
+
+// Permission levels for role-based access control.
+const (
+    // PermRead allows read-only access to resources.
+    PermRead Permission = "read"
+    // PermWrite allows creating and modifying resources.
+    PermWrite Permission = "write"
+    // PermDelete allows removing resources.
+    PermDelete Permission = "delete"
+)
+```
+
+### Make Defaults Overridable
+
+For production code, allow constants to be overridden via configuration:
+
+```go
+// const.go
+
+// DefaultRequestTimeout is the fallback timeout when not configured.
+const DefaultRequestTimeout = 30 * time.Second
+
+// config.go
+
+// Config holds application configuration loaded from environment variables.
+type Config struct {
+    RequestTimeout time.Duration `env:"REQUEST_TIMEOUT" default:"30s"`
+}
+
+// GetRequestTimeout returns the configured timeout or falls back to default.
+func (c *Config) GetRequestTimeout() time.Duration {
+    if c.RequestTimeout > 0 {
+        return c.RequestTimeout
+    }
+    return DefaultRequestTimeout
+}
+```
+
 ## API Design Patterns
 
 ### RESTful Structure
@@ -109,7 +257,7 @@ func AuthMiddleware(verifier TokenVerifier) func(http.Handler) http.Handler {
 r.Use(middleware.RequestID)
 r.Use(middleware.Logger)
 r.Use(middleware.Recoverer)
-r.Use(middleware.Timeout(30 * time.Second))
+r.Use(middleware.Timeout(DefaultRequestTimeout))
 ```
 
 ### Handler Pattern
@@ -205,10 +353,10 @@ err := WithTx(ctx, db, func(tx *sql.Tx) error {
 ### Connection Pool
 
 ```go
-db.SetMaxOpenConns(25)
-db.SetMaxIdleConns(5)
-db.SetConnMaxLifetime(5 * time.Minute)
-db.SetConnMaxIdleTime(1 * time.Minute)
+db.SetMaxOpenConns(DefaultMaxOpenConns)
+db.SetMaxIdleConns(DefaultMaxIdleConns)
+db.SetConnMaxLifetime(DefaultConnMaxLifetime)
+db.SetConnMaxIdleTime(DefaultConnMaxIdleTime)
 ```
 
 ## Caching
@@ -260,12 +408,17 @@ func (c *MarketCache) Get(ctx context.Context, id string) (*Market, error) {
 ### Domain Errors
 
 ```go
+// Domain errors for consistent error handling across the application.
 var (
-    ErrNotFound     = errors.New("not found")
+    // ErrNotFound is returned when the requested resource does not exist.
+    ErrNotFound = errors.New("not found")
+    // ErrUnauthorized is returned when authentication is required but missing or invalid.
     ErrUnauthorized = errors.New("unauthorized")
-    ErrForbidden    = errors.New("forbidden")
+    // ErrForbidden is returned when the user lacks permission for the requested action.
+    ErrForbidden = errors.New("forbidden")
 )
 
+// ValidationError represents a field-level validation failure.
 type ValidationError struct {
     Field   string `json:"field"`
     Message string `json:"message"`
@@ -354,11 +507,16 @@ func (v *TokenVerifier) Verify(ctx context.Context, token string) (*Claims, erro
 ### RBAC
 
 ```go
+// Permission represents an access control permission level.
 type Permission string
 
+// Permission levels for role-based access control.
 const (
-    PermRead   Permission = "read"
-    PermWrite  Permission = "write"
+    // PermRead allows read-only access to resources.
+    PermRead Permission = "read"
+    // PermWrite allows creating and modifying resources.
+    PermWrite Permission = "write"
+    // PermDelete allows removing resources.
     PermDelete Permission = "delete"
 )
 
@@ -367,6 +525,7 @@ var rolePerms = map[string][]Permission{
     "user":  {PermRead, PermWrite},
 }
 
+// RequirePermission returns middleware that enforces the given permission.
 func RequirePermission(perm Permission) func(http.Handler) http.Handler {
     return func(next http.Handler) http.Handler {
         return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -436,7 +595,7 @@ func NewWorkerPool(workers, queueSize int) *WorkerPool {
 func (p *WorkerPool) worker() {
     defer p.wg.Done()
     for job := range p.jobs {
-        ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+        ctx, cancel := context.WithTimeout(context.Background(), DefaultJobTimeout)
         if err := job.Execute(ctx); err != nil {
             log.Printf("job failed: %v", err)
         }
@@ -464,7 +623,7 @@ func main() {
     signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
     <-quit
 
-    ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+    ctx, cancel := context.WithTimeout(context.Background(), DefaultShutdownTimeout)
     defer cancel()
 
     srv.Shutdown(ctx)
@@ -557,7 +716,7 @@ logger.WithError(err).Error("operation failed")
 
 ```go
 func (s *Server) healthCheck(w http.ResponseWriter, r *http.Request) {
-    ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+    ctx, cancel := context.WithTimeout(r.Context(), DefaultHealthTimeout)
     defer cancel()
 
     checks := map[string]string{"database": "healthy", "redis": "healthy"}
