@@ -477,9 +477,48 @@ func main() {
 
 | Library | Use Case |
 |---------|----------|
+| `zap` | High-performance, structured logging, production-grade |
 | `log/slog` | New projects (Go 1.21+), standard library |
 | `logrus` | Rich ecosystem, hooks for external services |
 | `zerolog` | High-performance, zero allocation |
+
+### Zap
+
+```go
+import "go.uber.org/zap"
+
+// Production logger (JSON, optimized)
+logger, _ := zap.NewProduction()
+defer logger.Sync()
+
+logger.Info("request completed",
+    zap.String("method", r.Method),
+    zap.String("path", r.URL.Path),
+    zap.Int("status", status),
+    zap.Duration("duration", elapsed),
+)
+
+// With error
+logger.Error("operation failed",
+    zap.Error(err),
+    zap.String("user_id", userID),
+)
+
+// Sugar logger (simpler API, slightly slower)
+sugar := logger.Sugar()
+sugar.Infow("request completed",
+    "method", r.Method,
+    "path", r.URL.Path,
+    "status", status,
+)
+
+// Child logger with preset fields
+requestLogger := logger.With(
+    zap.String("request_id", requestID),
+    zap.String("user_id", userID),
+)
+requestLogger.Info("processing request")
+```
 
 ### slog (Standard Library)
 
