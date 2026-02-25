@@ -35,6 +35,7 @@ func (s *Server) process(ctx context.Context) error {
 ### When to Centralize Constants
 
 Use a dedicated `const.go` file when constants are:
+
 - Shared across multiple files in a package
 - Configuration values that may need tuning
 - Part of the package's public API

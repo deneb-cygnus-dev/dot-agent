@@ -52,6 +52,7 @@ ls -la docs/implementations 2>/dev/null || echo "DIRECTORY_NOT_FOUND"
 > "The `docs/implementations` directory does not exist. Would you like me to create it?"
 
 If approved:
+
 ```bash
 mkdir -p docs/implementations
 ```
@@ -62,7 +63,7 @@ Create a markdown file named after the branch: `docs/implementations/{branch-nam
 
 ### Document Template
 
-```markdown
+````markdown
 # {Branch Name} - Implementation Documentation
 
 > Generated: {YYYY-MM-DD}
@@ -112,7 +113,7 @@ Create a markdown file named after the branch: `docs/implementations/{branch-nam
 ### WHERE - Affected Areas
 
 **Files Changed:**
-```
+```diff
 {output of git diff main --stat}
 ```
 
@@ -192,7 +193,7 @@ Create a markdown file named after the branch: `docs/implementations/{branch-nam
 - {Link to design doc, if any}
 - {Link to related PRs}
 - {Link to relevant documentation}
-```
+````
 
 ## Step 4: Content Guidelines
 
@@ -239,12 +240,14 @@ Before finalizing, verify:
 ## Output
 
 Save the documentation to:
-```
+
+```text
 {project-root}/docs/implementations/{branch-name}.md
 ```
 
 Example: For branch `feature/user-auth`, create:
-```
+
+```text
 docs/implementations/feature-user-auth.md
 ```
 
