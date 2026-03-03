@@ -1,6 +1,7 @@
 ---
 name: security-review
 description: Use this skill when adding authentication, handling user input, working with secrets, creating API endpoints, or implementing payment/sensitive features. Provides comprehensive security checklist and patterns.
+origin: ECC
 ---
 
 # Security Review Skill
@@ -21,28 +22,22 @@ This skill ensures all code follows security best practices and identifies poten
 
 ### 1. Secrets Management
 
-#### NEVER Do This
+#### ❌ NEVER Do This
 
-```go
+```typescript
 const apiKey = "sk-proj-xxxxx"  // Hardcoded secret
 const dbPassword = "password123" // In source code
 ```
 
-#### ALWAYS Do This
+#### ✅ ALWAYS Do This
 
-```go
-func loadConfig() (*Config, error) {
-    apiKey := os.Getenv("OPENAI_API_KEY")
-    if apiKey == "" {
-        return nil, errors.New("OPENAI_API_KEY not configured")
-    }
+```typescript
+const apiKey = process.env.OPENAI_API_KEY
+const dbUrl = process.env.DATABASE_URL
 
-    dbURL := os.Getenv("DATABASE_URL")
-    if dbURL == "" {
-        return nil, errors.New("DATABASE_URL not configured")
-    }
-
-    return &Config{APIKey: apiKey, DatabaseURL: dbURL}, nil
+// Verify secrets exist
+if (!apiKey) {
+  throw new Error('OPENAI_API_KEY not configured')
 }
 ```
 
@@ -50,82 +45,62 @@ func loadConfig() (*Config, error) {
 
 - [ ] No hardcoded API keys, tokens, or passwords
 - [ ] All secrets in environment variables
-- [ ] `.env` files in .gitignore
+- [ ] `.env.local` in .gitignore
 - [ ] No secrets in git history
-- [ ] Production secrets in hosting platform or secret manager
+- [ ] Production secrets in hosting platform (Vercel, Railway)
 
 ### 2. Input Validation
 
 #### Always Validate User Input
 
-```go
-import "github.com/go-playground/validator/v10"
+```typescript
+import { z } from 'zod'
 
-type CreateUserRequest struct {
-    Email string `json:"email" validate:"required,email"`
-    Name  string `json:"name" validate:"required,min=1,max=100"`
-    Age   int    `json:"age" validate:"gte=0,lte=150"`
-}
+// Define validation schema
+const CreateUserSchema = z.object({
+  email: z.string().email(),
+  name: z.string().min(1).max(100),
+  age: z.number().int().min(0).max(150)
+})
 
-var validate = validator.New()
-
-func (h *Handler) CreateUser(w http.ResponseWriter, r *http.Request) {
-    var req CreateUserRequest
-    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-        respondError(w, http.StatusBadRequest, "invalid request body")
-        return
+// Validate before processing
+export async function createUser(input: unknown) {
+  try {
+    const validated = CreateUserSchema.parse(input)
+    return await db.users.create(validated)
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return { success: false, errors: error.errors }
     }
-
-    if err := validate.Struct(req); err != nil {
-        respondError(w, http.StatusBadRequest, "validation failed")
-        return
-    }
-
-    // Proceed with validated data
+    throw error
+  }
 }
 ```
 
 #### File Upload Validation
 
-```go
-func validateFileUpload(header *multipart.FileHeader) error {
-    // Size check (5MB max)
-    const maxSize = 5 << 20
-    if header.Size > maxSize {
-        return errors.New("file too large (max 5MB)")
-    }
+```typescript
+function validateFileUpload(file: File) {
+  // Size check (5MB max)
+  const maxSize = 5 * 1024 * 1024
+  if (file.size > maxSize) {
+    throw new Error('File too large (max 5MB)')
+  }
 
-    // Type check via content sniffing
-    file, err := header.Open()
-    if err != nil {
-        return err
-    }
-    defer file.Close()
+  // Type check
+  const allowedTypes = ['image/jpeg', 'image/png', 'image/gif']
+  if (!allowedTypes.includes(file.type)) {
+    throw new Error('Invalid file type')
+  }
 
-    buf := make([]byte, 512)
-    if _, err := file.Read(buf); err != nil {
-        return err
-    }
+  // Extension check
+  const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif']
+  const extension = file.name.toLowerCase().match(/\.[^.]+$/)?.[0]
+  if (!extension || !allowedExtensions.includes(extension)) {
+    throw new Error('Invalid file extension')
+  }
 
-    contentType := http.DetectContentType(buf)
-    allowedTypes := map[string]bool{
-        "image/jpeg": true,
-        "image/png":  true,
-        "image/gif":  true,
-    }
-
-    if !allowedTypes[contentType] {
-        return errors.New("invalid file type")
-    }
-
-    // Extension check
-    ext := strings.ToLower(filepath.Ext(header.Filename))
-    allowedExts := map[string]bool{".jpg": true, ".jpeg": true, ".png": true, ".gif": true}
-    if !allowedExts[ext] {
-        return errors.New("invalid file extension")
-    }
-
-    return nil
+  return true
 }
 ```
 
@@ -139,103 +114,72 @@ func validateFileUpload(header *multipart.FileHeader) error {
 
 ### 3. SQL Injection Prevention
 
-#### NEVER Concatenate SQL
+#### ❌ NEVER Concatenate SQL
 
-```go
+```typescript
 // DANGEROUS - SQL Injection vulnerability
-query := fmt.Sprintf("SELECT * FROM users WHERE email = '%s'", userEmail)
-db.Query(query)
+const query = `SELECT * FROM users WHERE email = '${userEmail}'`
+await db.query(query)
 ```
 
-#### ALWAYS Use Parameterized Queries
+#### ✅ ALWAYS Use Parameterized Queries
 
-```go
+```typescript
 // Safe - parameterized query
-row := db.QueryRowContext(ctx,
-    "SELECT id, name, email FROM users WHERE email = $1",
-    userEmail,
+const { data } = await supabase
+  .from('users')
+  .select('*')
+  .eq('email', userEmail)
+
+// Or with raw SQL
+await db.query(
+  'SELECT * FROM users WHERE email = $1',
+  [userEmail]
 )
-
-// With sqlx
-var user User
-err := db.GetContext(ctx, &user,
-    "SELECT * FROM users WHERE email = $1", userEmail)
-
-// GORM (also safe)
-db.Where("email = ?", userEmail).First(&user)
 ```
 
 #### Verification Steps
 
 - [ ] All database queries use parameterized queries
-- [ ] No string concatenation/fmt.Sprintf in SQL
+- [ ] No string concatenation in SQL
 - [ ] ORM/query builder used correctly
-- [ ] Dynamic column names validated against whitelist
+- [ ] Supabase queries properly sanitized
 
 ### 4. Authentication & Authorization
 
 #### JWT Token Handling
 
-```go
-// CORRECT: httpOnly cookies
-func setAuthCookie(w http.ResponseWriter, token string) {
-    http.SetCookie(w, &http.Cookie{
-        Name:     "token",
-        Value:    token,
-        HttpOnly: true,
-        Secure:   true,
-        SameSite: http.SameSiteStrictMode,
-        MaxAge:   3600,
-        Path:     "/",
-    })
-}
+```typescript
+// ❌ WRONG: localStorage (vulnerable to XSS)
+localStorage.setItem('token', token)
 
-// Token verification middleware
-func AuthMiddleware(verifier *TokenVerifier) func(http.Handler) http.Handler {
-    return func(next http.Handler) http.Handler {
-        return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-            cookie, err := r.Cookie("token")
-            if err != nil {
-                http.Error(w, "unauthorized", http.StatusUnauthorized)
-                return
-            }
-
-            claims, err := verifier.Verify(cookie.Value)
-            if err != nil {
-                http.Error(w, "invalid token", http.StatusUnauthorized)
-                return
-            }
-
-            ctx := context.WithValue(r.Context(), userClaimsKey, claims)
-            next.ServeHTTP(w, r.WithContext(ctx))
-        })
-    }
-}
+// ✅ CORRECT: httpOnly cookies
+res.setHeader('Set-Cookie',
+  `token=${token}; HttpOnly; Secure; SameSite=Strict; Max-Age=3600`)
 ```
 
 #### Authorization Checks
 
-```go
-func (h *Handler) DeleteUser(w http.ResponseWriter, r *http.Request) {
-    claims := MustUserFromContext(r.Context())
-    targetID := chi.URLParam(r, "id")
+```typescript
+export async function deleteUser(userId: string, requesterId: string) {
+  // ALWAYS verify authorization first
+  const requester = await db.users.findUnique({
+    where: { id: requesterId }
+  })
 
-    // ALWAYS verify authorization first
-    if claims.Role != "admin" && claims.UserID != targetID {
-        http.Error(w, "forbidden", http.StatusForbidden)
-        return
-    }
+  if (requester.role !== 'admin') {
+    return NextResponse.json(
+      { error: 'Unauthorized' },
+      { status: 403 }
+    )
+  }
 
-    if err := h.userService.Delete(r.Context(), targetID); err != nil {
-        h.handleError(w, err)
-        return
-    }
-
-    w.WriteHeader(http.StatusNoContent)
+  // Proceed with deletion
+  await db.users.delete({ where: { id: userId } })
 }
 ```
 
-#### Row Level Security (PostgreSQL)
+#### Row Level Security (Supabase)
 
 ```sql
 -- Enable RLS on all tables
@@ -254,124 +198,117 @@ CREATE POLICY "Users update own data"
 
 #### Verification Steps
 
-- [ ] Tokens stored in httpOnly cookies (not client storage)
+- [ ] Tokens stored in httpOnly cookies (not localStorage)
 - [ ] Authorization checks before sensitive operations
-- [ ] Row Level Security enabled where applicable
+- [ ] Row Level Security enabled in Supabase
 - [ ] Role-based access control implemented
 - [ ] Session management secure
 
 ### 5. XSS Prevention
 
-#### Sanitize User Content
+#### Sanitize HTML
 
-```go
-import "github.com/microcosm-cc/bluemonday"
+```typescript
+import DOMPurify from 'isomorphic-dompurify'
 
-var sanitizer = bluemonday.UGCPolicy()
-
-func sanitizeHTML(input string) string {
-    return sanitizer.Sanitize(input)
-}
-
-// For strict text only (no HTML)
-var strictPolicy = bluemonday.StrictPolicy()
-
-func sanitizeText(input string) string {
-    return strictPolicy.Sanitize(input)
+// ALWAYS sanitize user-provided HTML
+function renderUserContent(html: string) {
+  const clean = DOMPurify.sanitize(html, {
+    ALLOWED_TAGS: ['b', 'i', 'em', 'strong', 'p'],
+    ALLOWED_ATTR: []
+  })
+  return <div dangerouslySetInnerHTML={{ __html: clean }} />
 }
 ```
 
-#### Security Headers Middleware
+#### Content Security Policy
 
-```go
-func SecurityHeaders(next http.Handler) http.Handler {
-    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-        w.Header().Set("Content-Security-Policy",
-            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'")
-        w.Header().Set("X-Content-Type-Options", "nosniff")
-        w.Header().Set("X-Frame-Options", "DENY")
-        w.Header().Set("X-XSS-Protection", "1; mode=block")
-        w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
-        next.ServeHTTP(w, r)
-    })
-}
+```typescript
+// next.config.js
+const securityHeaders = [
+  {
+    key: 'Content-Security-Policy',
+    value: `
+      default-src 'self';
+      script-src 'self' 'unsafe-eval' 'unsafe-inline';
+      style-src 'self' 'unsafe-inline';
+      img-src 'self' data: https:;
+      font-src 'self';
+      connect-src 'self' https://api.example.com;
+    `.replace(/\s{2,}/g, ' ').trim()
+  }
+]
 ```
 
 #### Verification Steps
 
 - [ ] User-provided HTML sanitized
-- [ ] Security headers configured
-- [ ] No unvalidated dynamic content in responses
-- [ ] JSON responses properly escaped (encoding/json handles this)
+- [ ] CSP headers configured
+- [ ] No unvalidated dynamic content rendering
+- [ ] React's built-in XSS protection used
 
 ### 6. CSRF Protection
 
-#### CSRF Token Middleware
+#### CSRF Tokens
 
-```go
-import "github.com/gorilla/csrf"
+```typescript
+import { csrf } from '@/lib/csrf'
 
-func setupCSRF(r chi.Router) {
-    csrfMiddleware := csrf.Protect(
-        []byte(os.Getenv("CSRF_KEY")),
-        csrf.Secure(true),
-        csrf.HttpOnly(true),
-        csrf.SameSite(csrf.SameSiteStrictMode),
+export async function POST(request: Request) {
+  const token = request.headers.get('X-CSRF-Token')
+
+  if (!csrf.verify(token)) {
+    return NextResponse.json(
+      { error: 'Invalid CSRF token' },
+      { status: 403 }
     )
-    r.Use(csrfMiddleware)
-}
+  }
 
-// In handlers, get token for forms
-func (h *Handler) GetForm(w http.ResponseWriter, r *http.Request) {
-    token := csrf.Token(r)
-    // Include token in response/form
+  // Process request
 }
+```
+
+#### SameSite Cookies
+
+```typescript
+res.setHeader('Set-Cookie',
+  `session=${sessionId}; HttpOnly; Secure; SameSite=Strict`)
 ```
 
 #### Verification Steps
 
 - [ ] CSRF tokens on state-changing operations
 - [ ] SameSite=Strict on all cookies
-- [ ] CSRF middleware enabled
+- [ ] Double-submit cookie pattern implemented
 
 ### 7. Rate Limiting
 
-```go
-import "golang.org/x/time/rate"
+#### API Rate Limiting
 
-type RateLimiter struct {
-    limiters sync.Map
-    rate     rate.Limit
-    burst    int
-}
+```typescript
+import rateLimit from 'express-rate-limit'
 
-func (l *RateLimiter) Allow(key string) bool {
-    limiter, _ := l.limiters.LoadOrStore(key, rate.NewLimiter(l.rate, l.burst))
-    return limiter.(*rate.Limiter).Allow()
-}
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // 100 requests per window
+  message: 'Too many requests'
+})
 
-func RateLimitMiddleware(limiter *RateLimiter) func(http.Handler) http.Handler {
-    return func(next http.Handler) http.Handler {
-        return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-            key := r.RemoteAddr // or user ID for authenticated requests
+// Apply to routes
+app.use('/api/', limiter)
+```
 
-            if !limiter.Allow(key) {
-                w.Header().Set("Retry-After", "60")
-                http.Error(w, "rate limit exceeded", http.StatusTooManyRequests)
-                return
-            }
+#### Expensive Operations
 
-            next.ServeHTTP(w, r)
-        })
-    }
-}
+```typescript
+// Aggressive rate limiting for searches
+const searchLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 10, // 10 requests per minute
+  message: 'Too many search requests'
+})
 
-// Different limits for different endpoints
-var (
-    generalLimiter = NewRateLimiter(100, 10)  // 100 req/s, burst 10
-    searchLimiter  = NewRateLimiter(10, 5)    // 10 req/s, burst 5
-    authLimiter    = NewRateLimiter(5, 3)     // 5 req/s, burst 3
-)
+app.use('/api/search', searchLimiter)
 ```
 
 #### Verification Steps
@@ -385,37 +322,34 @@ var (
 
 #### Logging
 
-```go
-// WRONG: Logging sensitive data
-logger.Info("user login", "email", email, "password", password)
-logger.Info("payment", "card", cardNumber, "cvv", cvv)
+```typescript
+// ❌ WRONG: Logging sensitive data
+console.log('User login:', { email, password })
+console.log('Payment:', { cardNumber, cvv })
 
-// CORRECT: Redact sensitive data
-logger.Info("user login", "email", email, "user_id", userID)
-logger.Info("payment", "last4", card.Last4, "user_id", userID)
+// ✅ CORRECT: Redact sensitive data
+console.log('User login:', { email, userId })
+console.log('Payment:', { last4: card.last4, userId })
 ```
 
-#### Error Handling
+#### Error Messages
 
-```go
-// WRONG: Exposing internal details
-func handleError(w http.ResponseWriter, err error) {
-    http.Error(w, err.Error(), http.StatusInternalServerError) // Leaks details!
+```typescript
+// ❌ WRONG: Exposing internal details
+catch (error) {
+  return NextResponse.json(
+    { error: error.message, stack: error.stack },
+    { status: 500 }
+  )
 }
 
-// CORRECT: Generic error messages
-func handleError(w http.ResponseWriter, r *http.Request, err error) {
-    requestID := middleware.GetReqID(r.Context())
-
-    // Log full error internally
-    logger.Error("request failed",
-        "error", err,
-        "request_id", requestID,
-        "path", r.URL.Path,
-    )
-
-    // Return generic message to client
-    http.Error(w, "an error occurred", http.StatusInternalServerError)
+// ✅ CORRECT: Generic error messages
+catch (error) {
+  console.error('Internal error:', error)
+  return NextResponse.json(
+    { error: 'An error occurred. Please try again.' },
+    { status: 500 }
+  )
 }
 ```
 
@@ -426,92 +360,137 @@ func handleError(w http.ResponseWriter, r *http.Request, err error) {
 - [ ] Detailed errors only in server logs
 - [ ] No stack traces exposed to users
 
-### 9. Dependency Security
+### 9. Blockchain Security (Solana)
+
+#### Wallet Verification
+
+```typescript
+import { verify } from '@solana/web3.js'
+
+async function verifyWalletOwnership(
+  publicKey: string,
+  signature: string,
+  message: string
+) {
+  try {
+    const isValid = verify(
+      Buffer.from(message),
+      Buffer.from(signature, 'base64'),
+      Buffer.from(publicKey, 'base64')
+    )
+    return isValid
+  } catch (error) {
+    return false
+  }
+}
+```
+
+#### Transaction Verification
+
+```typescript
+async function verifyTransaction(transaction: Transaction) {
+  // Verify recipient
+  if (transaction.to !== expectedRecipient) {
+    throw new Error('Invalid recipient')
+  }
+
+  // Verify amount
+  if (transaction.amount > maxAmount) {
+    throw new Error('Amount exceeds limit')
+  }
+
+  // Verify user has sufficient balance
+  const balance = await getBalance(transaction.from)
+  if (balance < transaction.amount) {
+    throw new Error('Insufficient balance')
+  }
+
+  return true
+}
+```
+
+#### Verification Steps
+
+- [ ] Wallet signatures verified
+- [ ] Transaction details validated
+- [ ] Balance checks before transactions
+- [ ] No blind transaction signing
+
+### 10. Dependency Security
 
 #### Regular Updates
 
 ```bash
 # Check for vulnerabilities
-go list -m -json all | go run golang.org/x/vuln/cmd/govulncheck@latest
+npm audit
 
-# Or install govulncheck
-go install golang.org/x/vuln/cmd/govulncheck@latest
-govulncheck ./...
+# Fix automatically fixable issues
+npm audit fix
 
 # Update dependencies
-go get -u ./...
-go mod tidy
+npm update
 
 # Check for outdated packages
-go list -m -u all
+npm outdated
 ```
 
 #### Lock Files
 
 ```bash
-# ALWAYS commit go.sum
-git add go.mod go.sum
+# ALWAYS commit lock files
+git add package-lock.json
 
-# Verify dependencies
-go mod verify
+# Use in CI/CD for reproducible builds
+npm ci  # Instead of npm install
 ```
 
 #### Verification Steps
 
 - [ ] Dependencies up to date
-- [ ] No known vulnerabilities (govulncheck clean)
-- [ ] go.mod and go.sum committed
-- [ ] Dependabot/Renovate enabled
+- [ ] No known vulnerabilities (npm audit clean)
+- [ ] Lock files committed
+- [ ] Dependabot enabled on GitHub
 - [ ] Regular security updates
 
 ## Security Testing
 
-```go
-func TestRequiresAuthentication(t *testing.T) {
-    req := httptest.NewRequest("GET", "/api/protected", nil)
-    rec := httptest.NewRecorder()
+### Automated Security Tests
 
-    handler.ServeHTTP(rec, req)
+```typescript
+// Test authentication
+test('requires authentication', async () => {
+  const response = await fetch('/api/protected')
+  expect(response.status).toBe(401)
+})
 
-    assert.Equal(t, http.StatusUnauthorized, rec.Code)
-}
+// Test authorization
+test('requires admin role', async () => {
+  const response = await fetch('/api/admin', {
+    headers: { Authorization: `Bearer ${userToken}` }
+  })
+  expect(response.status).toBe(403)
+})
 
-func TestRequiresAdminRole(t *testing.T) {
-    req := httptest.NewRequest("DELETE", "/api/users/123", nil)
-    req.Header.Set("Authorization", "Bearer "+userToken) // non-admin token
-    rec := httptest.NewRecorder()
+// Test input validation
+test('rejects invalid input', async () => {
+  const response = await fetch('/api/users', {
+    method: 'POST',
+    body: JSON.stringify({ email: 'not-an-email' })
+  })
+  expect(response.status).toBe(400)
+})
 
-    handler.ServeHTTP(rec, req)
+// Test rate limiting
+test('enforces rate limits', async () => {
+  const requests = Array(101).fill(null).map(() =>
+    fetch('/api/endpoint')
+  )
 
-    assert.Equal(t, http.StatusForbidden, rec.Code)
-}
+  const responses = await Promise.all(requests)
+  const tooManyRequests = responses.filter(r => r.status === 429)
 
-func TestRejectsInvalidInput(t *testing.T) {
-    body := strings.NewReader(`{"email": "not-an-email"}`)
-    req := httptest.NewRequest("POST", "/api/users", body)
-    req.Header.Set("Content-Type", "application/json")
-    rec := httptest.NewRecorder()
-
-    handler.ServeHTTP(rec, req)
-
-    assert.Equal(t, http.StatusBadRequest, rec.Code)
-}
-
-func TestEnforcesRateLimits(t *testing.T) {
-    var rateLimited int
-
-    for i := 0; i < 101; i++ {
-        req := httptest.NewRequest("GET", "/api/endpoint", nil)
-        rec := httptest.NewRecorder()
-        handler.ServeHTTP(rec, req)
-
-        if rec.Code == http.StatusTooManyRequests {
-            rateLimited++
-        }
-    }
-
-    assert.Greater(t, rateLimited, 0)
-}
+  expect(tooManyRequests.length).toBeGreaterThan(0)
+})
 ```
 
 ## Pre-Deployment Security Checklist
@@ -521,9 +500,9 @@ Before ANY production deployment:
 - [ ] **Secrets**: No hardcoded secrets, all in env vars
 - [ ] **Input Validation**: All user inputs validated
 - [ ] **SQL Injection**: All queries parameterized
-- [ ] **XSS**: User content sanitized, security headers set
+- [ ] **XSS**: User content sanitized
 - [ ] **CSRF**: Protection enabled
-- [ ] **Authentication**: Proper token handling (httpOnly cookies)
+- [ ] **Authentication**: Proper token handling
 - [ ] **Authorization**: Role checks in place
 - [ ] **Rate Limiting**: Enabled on all endpoints
 - [ ] **HTTPS**: Enforced in production
@@ -531,14 +510,16 @@ Before ANY production deployment:
 - [ ] **Error Handling**: No sensitive data in errors
 - [ ] **Logging**: No sensitive data logged
 - [ ] **Dependencies**: Up to date, no vulnerabilities
+- [ ] **Row Level Security**: Enabled in Supabase
 - [ ] **CORS**: Properly configured
 - [ ] **File Uploads**: Validated (size, type)
+- [ ] **Wallet Signatures**: Verified (if blockchain)
 
 ## Resources
 
 - [OWASP Top 10](https://owasp.org/www-project-top-ten/)
-- [Go Security Best Practices](https://go.dev/doc/security/best-practices)
-- [govulncheck](https://pkg.go.dev/golang.org/x/vuln/cmd/govulncheck)
+- [Next.js Security](https://nextjs.org/docs/security)
+- [Supabase Security](https://supabase.com/docs/guides/auth)
 - [Web Security Academy](https://portswigger.net/web-security)
 
 ---
