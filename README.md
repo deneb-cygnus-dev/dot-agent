@@ -175,24 +175,25 @@ After the sync, run these checks in order:
 
 **6a. Markdownlint**
 
+Run `--fix` first — it automatically resolves the majority of violations (trailing spaces, blank lines around headings/fences/lists, hard tabs, missing final newline, etc.):
+
+```bash
+mise exec -- markdownlint "**/*.md" --config .markdownlint.json --fix
+```
+
+Then re-run without `--fix` to surface the violations that require manual attention:
+
 ```bash
 mise exec -- markdownlint "**/*.md" --config .markdownlint.json
 ```
 
-Common violations introduced by upstream content:
+The following violations are **not** auto-fixable and must be handled manually:
 
-- `MD040` — bare code fences with no language tag. Fix with a Python heuristic script or manually. Language hints: `bash` for shell commands, `json`/`yaml` for config, `typescript`/`go`/`python` for code, `text` for prose in a code block.
+- `MD040` — bare code fences with no language tag. Add a language hint immediately after the opening backticks. Common values: `bash` for shell commands, `json`/`yaml` for config, `typescript`/`go`/`python` for code, `text` for prose in a code block. A Python heuristic script can handle bulk fixes by inspecting fence content.
 - `MD041` — file does not start with a top-level heading. Two forms:
   - File has YAML frontmatter with a `name:` field → the `.markdownlint.json` config already handles this; no action needed.
   - File starts with a pipe-delimited table used as a frontmatter substitute (e.g. `| name | description |`) → convert to proper YAML frontmatter (`---`, `name: …`, `description: …`, `---`).
 - `MD033` — inline HTML. Common cause: unescaped `<hash>` or `<variable>` placeholders in text. Wrap them in backticks.
-
-Auto-fix spacing issues first, then handle remaining violations manually:
-
-```bash
-mise exec -- markdownlint "**/*.md" --config .markdownlint.json --fix
-mise exec -- markdownlint "**/*.md" --config .markdownlint.json   # should be clean
-```
 
 **6b. Union-set and scripts/ verification**
 
