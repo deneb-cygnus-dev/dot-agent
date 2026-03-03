@@ -147,7 +147,7 @@ async function iterativeRetrieve(task, maxCycles = 3) {
 
 ### Example 1: Bug Fix Context
 
-```text
+```yaml
 Task: "Fix the authentication token expiry bug"
 
 Cycle 1:
@@ -165,7 +165,7 @@ Result: auth.ts, tokens.ts, session-manager.ts, jwt-utils.ts
 
 ### Example 2: Feature Implementation
 
-```text
+```yaml
 Task: "Add rate limiting to API endpoints"
 
 Cycle 1:

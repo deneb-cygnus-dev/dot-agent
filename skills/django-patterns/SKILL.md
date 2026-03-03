@@ -20,7 +20,7 @@ Production-grade Django architecture patterns for scalable, maintainable applica
 
 ### Recommended Layout
 
-```python
+```text
 myproject/
 ├── config/
 │   ├── __init__.py

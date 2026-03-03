@@ -108,7 +108,7 @@ This checklist is enforced by a `PostToolUse` hook that blocks completion until 
 
 ## Briefing Output Format
 
-```bash
+```text
 # Today's Briefing — [Date]
 
 ## Schedule (N)

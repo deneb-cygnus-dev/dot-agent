@@ -38,7 +38,7 @@ python3 ~/.claude/skills/continuous-learning-v2/scripts/instinct-cli.py status
 
 ## Output Format
 
-```text
+```yaml
 ============================================================
   INSTINCT STATUS - 12 total
 ============================================================

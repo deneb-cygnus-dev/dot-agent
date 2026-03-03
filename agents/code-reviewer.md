@@ -191,7 +191,7 @@ Fix: Move to environment variable and add to .gitignore/.env.example
 
 End every review with:
 
-```text
+```yaml
 ## Review Summary
 
 | Severity | Count | Status |

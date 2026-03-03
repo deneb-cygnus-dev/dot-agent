@@ -43,7 +43,7 @@ Import instincts from local file paths or HTTP(S) URLs.
 
 ## Import Process
 
-```go
+```text
 📥 Importing instincts from: team-instincts.yaml
 ================================================
 
@@ -104,7 +104,7 @@ project_name: "my-project"
 
 After import:
 
-```text
+```yaml
 ✅ Import complete!
 
 Added: 8 instincts

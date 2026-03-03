@@ -95,7 +95,34 @@ fi
 if [[ -d "$UPSTREAM_DIR/hooks" ]]; then
   mkdir -p "$SCRIPT_DIR/hooks"
   cp -r "$UPSTREAM_DIR/hooks/." "$SCRIPT_DIR/hooks/"
-  success "hooks/ synced"
+
+  # Patch ${CLAUDE_PLUGIN_ROOT}/ → .claude/ in hooks.json.
+  #
+  # ${CLAUDE_PLUGIN_ROOT} is only set by Claude Code for plugin installs under
+  # ~/.claude/plugins/. When this repo is used as a project-level submodule
+  # (symlinked as .claude/), the variable is never defined and every
+  # script-based hook silently fails.
+  #
+  # The .claude/ symlink is always present in the project root, so hook
+  # commands that run from the project root can reach .claude/scripts/…
+  # or .claude/skills/… through it — no plugin install required.
+  if [[ -f "$SCRIPT_DIR/hooks/hooks.json" ]]; then
+    sed -i.bak 's|\${CLAUDE_PLUGIN_ROOT}/|.claude/|g' "$SCRIPT_DIR/hooks/hooks.json"
+    rm -f "$SCRIPT_DIR/hooks/hooks.json.bak"
+    success "hooks/ synced  (hooks.json: \${CLAUDE_PLUGIN_ROOT} → .claude/)"
+  else
+    success "hooks/ synced"
+  fi
+fi
+
+# ── Copy component: scripts ───────────────────────────────────────────────────
+
+# scripts/ contains the Node.js hook implementations referenced by hooks.json.
+# install.sh previously skipped this directory, leaving hooks broken.
+if [[ -d "$UPSTREAM_DIR/scripts" ]]; then
+  mkdir -p "$SCRIPT_DIR/scripts"
+  cp -r "$UPSTREAM_DIR/scripts/." "$SCRIPT_DIR/scripts/"
+  success "scripts/ synced"
 fi
 
 # ── Copy component: rules ─────────────────────────────────────────────────────
@@ -170,6 +197,7 @@ echo "Content now in repo:"
 [[ -d "$SCRIPT_DIR/commands" ]] && echo "  commands: $(find "$SCRIPT_DIR/commands" -maxdepth 1 -name "*.md" | wc -l | tr -d ' ') commands"
 [[ -d "$SCRIPT_DIR/rules"    ]] && echo "  rules:    $(find "$SCRIPT_DIR/rules"    -name "*.md" | wc -l | tr -d ' ') rule files"
 [[ -d "$SCRIPT_DIR/hooks"    ]] && echo "  hooks:    present"
+[[ -d "$SCRIPT_DIR/scripts"  ]] && echo "  scripts:  $(find "$SCRIPT_DIR/scripts" -name "*.js" | wc -l | tr -d ' ') scripts"
 [[ -d "$SCRIPT_DIR/contexts" ]] && echo "  contexts: $(find "$SCRIPT_DIR/contexts" -maxdepth 1 -name "*.md" | wc -l | tr -d ' ') contexts"
 echo ""
 echo "Next step: review changes and commit."

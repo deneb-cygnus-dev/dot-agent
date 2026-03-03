@@ -36,7 +36,7 @@ The planner agent will:
 
 ## Example Usage
 
-```text
+```yaml
 User: /plan I need to add real-time notifications when markets resolve
 
 Agent (planner):

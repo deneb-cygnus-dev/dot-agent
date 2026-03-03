@@ -298,7 +298,7 @@ ALTER TABLE users DROP COLUMN IF EXISTS avatar_url;
 
 For critical production changes, follow the expand-contract pattern:
 
-```python
+```sql
 Phase 1: EXPAND
   - Add new column/table (nullable or with default)
   - Deploy: app writes to BOTH old and new

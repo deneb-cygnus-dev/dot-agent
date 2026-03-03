@@ -1,7 +1,3 @@
----
-description: Create or verify a checkpoint in your workflow.
----
-
 # Checkpoint Command
 
 Create or verify a checkpoint in your workflow.
@@ -37,7 +33,7 @@ When verifying against a checkpoint:
 
 3. Report:
 
-```text
+```yaml
 CHECKPOINT COMPARISON: $NAME
 ============================
 Files changed: X

@@ -61,7 +61,7 @@ Reference this skill when working on the specific project it's designed for. Pro
 
 ## File Structure
 
-```python
+```text
 project/
 ├── frontend/
 │   └── src/

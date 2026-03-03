@@ -1,7 +1,3 @@
----
-description: Multi-model collaborative development workflow with intelligent routing - Frontend → Gemini, Backend → Codex.
----
-
 # Workflow - Multi-Model Collaborative Development
 
 Multi-model collaborative development workflow (Research → Ideation → Plan → Execute → Optimize → Review), with intelligent routing: Frontend → Gemini, Backend → Codex.
@@ -38,7 +34,7 @@ You are the **Orchestrator**, coordinating a multi-model collaborative system (R
 
 **Call syntax** (parallel: `run_in_background: true`, sequential: `false`):
 
-```bash
+```python
 # New session call
 Bash({
   command: "~/.claude/bin/codeagent-wrapper {{LITE_MODE_FLAG}}--backend <codex|gemini> {{GEMINI_MODEL_FLAG}}- \"$PWD\" <<'EOF'

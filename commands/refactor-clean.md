@@ -1,7 +1,3 @@
----
-description: Safely identify and remove dead code with test verification at every step.
----
-
 # Refactor Clean
 
 Safely identify and remove dead code with test verification at every step.
@@ -21,7 +17,7 @@ Run analysis tools based on project type:
 
 If no tool is available, use Grep to find exports with zero imports:
 
-```bash
+```text
 # Find exports, then check if they're imported anywhere
 ```
 
@@ -67,7 +63,7 @@ After removing dead code, look for:
 
 Report results:
 
-```text
+```yaml
 Dead Code Cleanup
 ──────────────────────────────
 Deleted:   12 unused functions

@@ -155,7 +155,7 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 
 Services in the same Compose network resolve by service name:
 
-```bash
+```text
 # From "app" container:
 postgres://postgres:postgres@db:5432/app_dev    # "db" resolves to the db container
 redis://redis:6379/0                             # "redis" resolves to the redis container
@@ -344,7 +344,7 @@ docker network inspect <project>_default
 
 ## Anti-Patterns
 
-```bash
+```text
 # BAD: Using docker compose in production without orchestration
 # Use Kubernetes, ECS, or Docker Swarm for production multi-container workloads
 

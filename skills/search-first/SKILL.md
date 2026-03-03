@@ -72,7 +72,7 @@ Before writing a utility or adding functionality, mentally run through:
 
 For non-trivial functionality, launch the researcher agent:
 
-```text
+```yaml
 Task(subagent_type="general-purpose", prompt="
   Research existing tools for: [DESCRIPTION]
   Language/framework: [LANG]
@@ -159,7 +159,7 @@ Result: Zero custom code, production-proven libraries
 
 ### Example 3: "Add config file linter"
 
-```yaml
+```go
 Need: Validate project config files against a schema
 Search: npm "config linter schema", "json schema validator cli"
 Found: ajv-cli (score: 8/10)

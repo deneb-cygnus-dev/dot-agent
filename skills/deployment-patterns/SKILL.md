@@ -23,7 +23,7 @@ Production deployment workflows and CI/CD best practices.
 
 Replace instances gradually — old and new versions run simultaneously during rollout.
 
-```sql
+```text
 Instance 1: v1 → v2  (update first)
 Instance 2: v1        (still running v1)
 Instance 3: v1        (still running v1)
@@ -62,7 +62,7 @@ Green (v2) ← traffic
 
 Route a small percentage of traffic to the new version first.
 
-```text
+```yaml
 v1: 95% of traffic
 v2:  5% of traffic  (canary)
 
@@ -167,7 +167,7 @@ CMD ["gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8000", "--workers
 
 ### Docker Best Practices
 
-```bash
+```text
 # GOOD practices
 - Use specific version tags (node:22-alpine, not node:latest)
 - Multi-stage builds to minimize image size

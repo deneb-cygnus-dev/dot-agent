@@ -1,7 +1,3 @@
----
-description: Frontend-focused development workflow (Research → Ideation → Plan → Execute → Optimize → Review), Gemini-led.
----
-
 # Frontend - Frontend-Focused Development
 
 Frontend-focused workflow (Research → Ideation → Plan → Execute → Optimize → Review), Gemini-led.
@@ -34,7 +30,7 @@ You are the **Frontend Orchestrator**, coordinating multi-model collaboration fo
 
 **Call Syntax**:
 
-```bash
+```python
 # New session call
 Bash({
   command: "~/.claude/bin/codeagent-wrapper {{LITE_MODE_FLAG}}--backend gemini --gemini-model gemini-3-pro-preview - \"$PWD\" <<'EOF'

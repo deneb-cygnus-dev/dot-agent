@@ -100,7 +100,7 @@ Example:
 
 ## Output Format
 
-```text
+```yaml
 ============================================================
   EVOLVE ANALYSIS - 12 instincts
   Project: my-app (a1b2c3d4e5f6)

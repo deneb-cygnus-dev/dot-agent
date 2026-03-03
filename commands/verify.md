@@ -1,7 +1,3 @@
----
-description: Run comprehensive verification on current codebase state.
----
-
 # Verification Command
 
 Run comprehensive verification on current codebase state.
@@ -39,7 +35,7 @@ Execute verification in this exact order:
 
 Produce a concise verification report:
 
-```text
+```yaml
 VERIFICATION: [PASS/FAIL]
 
 Build:    [OK/FAIL]

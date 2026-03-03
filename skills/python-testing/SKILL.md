@@ -593,7 +593,7 @@ def test_with_tmpdir(tmpdir):
 
 ### Directory Structure
 
-```python
+```text
 tests/
 ├── conftest.py                 # Shared fixtures
 ├── __init__.py

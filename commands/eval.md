@@ -1,7 +1,3 @@
----
-description: Manage eval-driven development workflow.
----
-
 # Eval Command
 
 Manage eval-driven development workflow.
@@ -54,7 +50,7 @@ Run evals for a feature:
    - Record PASS/FAIL
 4. Report current status:
 
-```text
+```yaml
 EVAL CHECK: feature-name
 ========================
 Capability: X/Y passing
@@ -68,7 +64,7 @@ Status: IN PROGRESS / READY
 
 Generate comprehensive eval report:
 
-```text
+```yaml
 EVAL REPORT: feature-name
 =========================
 Generated: $(date)
@@ -106,7 +102,7 @@ RECOMMENDATION
 
 Show all eval definitions:
 
-```typescript
+```text
 EVAL DEFINITIONS
 ================
 feature-auth      [3/5 passing] IN PROGRESS
