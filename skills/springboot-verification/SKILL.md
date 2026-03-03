@@ -177,7 +177,7 @@ git secrets --scan  # if configured
 
 ### Common Security Findings
 
-```bash
+```text
 # Check for System.out.println (use logger instead)
 grep -rn "System\.out\.print" src/main/ --include="*.java"
 
@@ -211,7 +211,7 @@ Checklist:
 
 ## Output Template
 
-```text
+```yaml
 VERIFICATION REPORT
 ===================
 Build:     [PASS/FAIL]

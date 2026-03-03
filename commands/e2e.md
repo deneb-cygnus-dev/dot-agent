@@ -37,7 +37,7 @@ The e2e-runner agent will:
 
 ## Example Usage
 
-```yaml
+```typescript
 User: /e2e Test the market search and view flow
 
 Agent (e2e-runner):
@@ -179,7 +179,7 @@ Artifacts generated:
 
 ## Test Report
 
-```text
+```yaml
 ╔══════════════════════════════════════════════════════════════╗
 ║                    E2E Test Results                          ║
 ╠══════════════════════════════════════════════════════════════╣
@@ -236,7 +236,7 @@ open artifacts/search-results.png
 
 If a test fails intermittently:
 
-```typescript
+```text
 ⚠️  FLAKY TEST DETECTED: tests/e2e/markets/trade.spec.ts
 
 Test passed 7/10 runs (70% pass rate)

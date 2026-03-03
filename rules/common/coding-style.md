@@ -4,7 +4,7 @@
 
 ALWAYS create new objects, NEVER mutate existing ones:
 
-```text
+```yaml
 // Pseudocode
 WRONG:  modify(original, field, value) → changes original in-place
 CORRECT: update(original, field, value) → returns new copy with change

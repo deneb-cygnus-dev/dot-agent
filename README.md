@@ -18,6 +18,7 @@ This repo is the single source of truth for Claude Code configuration across all
 | `commands/` | 35 | Slash commands (`/plan`, `/tdd`, `/code-review`, `/go-build`, `/security-scan`, etc.) |
 | `contexts/` | 3 | Dynamic system prompt injections for dev, research, and review modes |
 | `hooks/` | — | Event-triggered automations across the session lifecycle |
+| `scripts/` | 10 | Node.js hook implementations referenced by `hooks/hooks.json` |
 | `rules/` | 30 files | Always-follow coding guidelines organized by language (common, TypeScript, Python, Go, Swift) |
 | `skills/` | 61 | Workflow and domain knowledge skills (see breakdown below) |
 
@@ -80,9 +81,10 @@ Run `./install.sh` whenever you want to pull in new upstream agents, skills, com
 The script:
 
 1. Clones the proxy fork (shallow) to a temporary directory
-2. Copies `agents/`, `commands/`, `contexts/`, `hooks/`, and `rules/` into this repo, replacing the previous upstream content
-3. Copies upstream skills into `skills/`, **skipping** the local skills listed above
-4. Prints a summary of what was installed
+2. Copies `agents/`, `commands/`, `contexts/`, `hooks/`, `rules/`, and `scripts/` into this repo, replacing the previous upstream content
+3. Patches `hooks/hooks.json`: replaces `${CLAUDE_PLUGIN_ROOT}/` with `.claude/` so all script-based hooks resolve correctly when the repo is used as a project-level submodule (see [hooks/README.md](hooks/README.md#path-resolution))
+4. Copies upstream skills into `skills/`, **skipping** the local skills listed above
+5. Prints a summary of what was installed
 
 After running, review the diff and commit:
 
@@ -180,7 +182,9 @@ mise exec -- markdownlint "**/*.md" --config .markdownlint.json
 Common violations introduced by upstream content:
 
 - `MD040` — bare code fences with no language tag. Fix with a Python heuristic script or manually. Language hints: `bash` for shell commands, `json`/`yaml` for config, `typescript`/`go`/`python` for code, `text` for prose in a code block.
-- `MD041` — file does not start with a top-level heading. If the file uses YAML frontmatter with a `name:` field, the `.markdownlint.json` config already handles this; otherwise add a `#` heading before any table or prose.
+- `MD041` — file does not start with a top-level heading. Two forms:
+  - File has YAML frontmatter with a `name:` field → the `.markdownlint.json` config already handles this; no action needed.
+  - File starts with a pipe-delimited table used as a frontmatter substitute (e.g. `| name | description |`) → convert to proper YAML frontmatter (`---`, `name: …`, `description: …`, `---`).
 - `MD033` — inline HTML. Common cause: unescaped `<hash>` or `<variable>` placeholders in text. Wrap them in backticks.
 
 Auto-fix spacing issues first, then handle remaining violations manually:
@@ -190,7 +194,7 @@ mise exec -- markdownlint "**/*.md" --config .markdownlint.json --fix
 mise exec -- markdownlint "**/*.md" --config .markdownlint.json   # should be clean
 ```
 
-**6b. Union-set verification**
+**6b. Union-set and scripts/ verification**
 
 Confirm no upstream skill was accidentally dropped:
 
@@ -203,7 +207,14 @@ Confirm local-only skills are still present:
 
 ```bash
 comm -13 <(ls /tmp/ecc/skills | sort) <(ls skills | sort)
-# Should list exactly the LOCAL_SKILLS entries
+# Should list exactly the LOCAL_SKILLS entries (minus any that also exist upstream)
+```
+
+Confirm `scripts/` was synced (hooks depend on it):
+
+```bash
+ls scripts/hooks/*.js | wc -l
+# Should be non-zero; upstream provides ~11 hook scripts
 ```
 
 **6c. Naming consistency**
@@ -225,6 +236,23 @@ Agents must have valid frontmatter (`name:`, `description:`, `model:`, `tools:`)
 Commands are valid with or without frontmatter — if a `description:` field is present it overrides the first-paragraph fallback, but it is not required.
 
 Contexts require no frontmatter. Hooks require a valid `hooks/hooks.json`. Rules use optional `paths:` frontmatter for language scoping.
+
+**6e. hooks.json path verification**
+
+Confirm `install.sh` successfully patched `${CLAUDE_PLUGIN_ROOT}` out of `hooks.json`:
+
+```bash
+grep -c "CLAUDE_PLUGIN_ROOT" hooks/hooks.json
+# Must print 0 — any non-zero count means the sed patch in install.sh failed
+```
+
+Confirm all script-based hooks now resolve via `.claude/`:
+
+```bash
+grep -o '"\.claude/[^"]*"' hooks/hooks.json
+# Should list paths like ".claude/scripts/hooks/post-edit-format.js",
+# ".claude/skills/continuous-learning-v2/hooks/observe.sh", etc.
+```
 
 ### Step 7 — Commit
 

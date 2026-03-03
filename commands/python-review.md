@@ -177,7 +177,7 @@ Recommendation: ❌ Block merge until CRITICAL issue is fixed
 
 Run: `black app/routes/user.py app/services/auth.py`
 
-```typescript
+```python
 
 ## Approval Criteria
 

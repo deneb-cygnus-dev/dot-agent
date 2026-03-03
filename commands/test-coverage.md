@@ -1,7 +1,3 @@
----
-description: Analyze test coverage, identify gaps, and generate missing tests to reach 80%+ coverage.
----
-
 # Test Coverage
 
 Analyze test coverage, identify gaps, and generate missing tests to reach 80%+ coverage.
@@ -54,7 +50,7 @@ For each under-covered file, generate tests following this priority:
 
 Show before/after comparison:
 
-```text
+```yaml
 Coverage Report
 ──────────────────────────────
 File                   Before  After

@@ -1,7 +1,3 @@
----
-description: Multi-model collaborative execution - Get prototype from plan → Claude refactors and implements → Multi-model audit and delivery.
----
-
 # Execute - Multi-Model Collaborative Execution
 
 Multi-model collaborative execution - Get prototype from plan → Claude refactors and implements → Multi-model audit and delivery.
@@ -24,7 +20,7 @@ $ARGUMENTS
 
 **Call Syntax** (parallel: use `run_in_background: true`):
 
-```bash
+```text
 # Resume session call (recommended) - Implementation Prototype
 Bash({
   command: "~/.claude/bin/codeagent-wrapper {{LITE_MODE_FLAG}}--backend <codex|gemini> {{GEMINI_MODEL_FLAG}}resume <SESSION_ID> - \"$PWD\" <<'EOF'
@@ -146,7 +142,7 @@ TaskOutput({ task_id: "<task_id>", block: true, timeout: 600000 })
 
 Based on "Key Files" list in plan, call `mcp__ace-tool__search_context`:
 
-```typescript
+```text
 mcp__ace-tool__search_context({
   query: "<semantic query based on plan content, including key files, modules, function names>",
   project_root_path: "$PWD"

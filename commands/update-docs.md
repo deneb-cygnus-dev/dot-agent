@@ -1,7 +1,3 @@
----
-description: Sync documentation with the codebase, generating from source-of-truth files.
----
-
 # Update Documentation
 
 Sync documentation with the codebase, generating from source-of-truth files.
@@ -72,7 +68,7 @@ Generate or update `docs/RUNBOOK.md` with:
 
 ## Step 7: Show Summary
 
-```text
+```yaml
 Documentation Update
 ──────────────────────────────
 Updated:  docs/CONTRIBUTING.md (scripts table)

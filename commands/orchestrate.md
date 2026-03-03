@@ -1,7 +1,3 @@
----
-description: Sequential agent workflow for complex tasks.
----
-
 # Orchestrate Command
 
 Sequential agent workflow for complex tasks.
@@ -110,7 +106,7 @@ Executes:
 
 ## Final Report Format
 
-```text
+```yaml
 ORCHESTRATION REPORT
 ====================
 Workflow: feature

@@ -14,7 +14,7 @@ Exports instincts to a shareable format. Perfect for:
 
 ## Usage
 
-```typescript
+```text
 /instinct-export                           # Export all personal instincts
 /instinct-export --domain testing          # Export only testing instincts
 /instinct-export --min-confidence 0.7      # Only export high-confidence instincts

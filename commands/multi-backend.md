@@ -1,7 +1,3 @@
----
-description: Backend-focused development workflow (Research → Ideation → Plan → Execute → Optimize → Review), Codex-led.
----
-
 # Backend - Backend-Focused Development
 
 Backend-focused workflow (Research → Ideation → Plan → Execute → Optimize → Review), Codex-led.
@@ -34,7 +30,7 @@ You are the **Backend Orchestrator**, coordinating multi-model collaboration for
 
 **Call Syntax**:
 
-```bash
+```python
 # New session call
 Bash({
   command: "~/.claude/bin/codeagent-wrapper {{LITE_MODE_FLAG}}--backend codex - \"$PWD\" <<'EOF'

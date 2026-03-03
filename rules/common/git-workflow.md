@@ -2,7 +2,7 @@
 
 ## Commit Message Format
 
-```html
+```text
 <type>: <description>
 
 <optional body>

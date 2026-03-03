@@ -98,7 +98,7 @@ Review each changed file for:
 
 After running all phases, produce a verification report:
 
-```text
+```yaml
 VERIFICATION REPORT
 ==================
 

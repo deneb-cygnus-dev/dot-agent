@@ -502,7 +502,7 @@ async def fetch_all(urls: list[str]) -> dict[str, str]:
 
 ### Standard Project Layout
 
-```python
+```text
 myproject/
 ├── src/
 │   └── mypackage/

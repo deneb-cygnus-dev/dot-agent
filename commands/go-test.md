@@ -36,7 +36,7 @@ REPEAT  → Next test case
 
 ## Example Session
 
-````yaml
+````bash
 User: /go-test I need a function to validate email addresses
 
 Agent:

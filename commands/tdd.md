@@ -38,7 +38,7 @@ The tdd-guide agent will:
 
 ## TDD Cycle
 
-```text
+```yaml
 RED → GREEN → REFACTOR → REPEAT
 
 RED:      Write a failing test
@@ -49,7 +49,7 @@ REPEAT:   Next feature/scenario
 
 ## Example Usage
 
-```yaml
+```bash
 User: /tdd I need a function to calculate market liquidity score
 
 Agent (tdd-guide):
