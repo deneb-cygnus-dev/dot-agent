@@ -1,17 +1,29 @@
 ---
 name: frontend-patterns
 description: Frontend development patterns for React, Next.js, state management, performance optimization, and UI best practices.
+origin: ECC
 ---
 
 # Frontend Development Patterns
 
 Modern frontend patterns for React, Next.js, and performant user interfaces.
 
+## When to Activate
+
+- Building React components (composition, props, rendering)
+- Managing state (useState, useReducer, Zustand, Context)
+- Implementing data fetching (SWR, React Query, server components)
+- Optimizing performance (memoization, virtualization, code splitting)
+- Working with forms (validation, controlled inputs, Zod schemas)
+- Handling client-side routing and navigation
+- Building accessible, responsive UI patterns
+
 ## Component Patterns
 
-### Composition
+### Composition Over Inheritance
 
 ```typescript
+// ✅ GOOD: Component composition
 interface CardProps {
   children: React.ReactNode
   variant?: 'default' | 'outlined'
@@ -39,13 +51,19 @@ export function CardBody({ children }: { children: React.ReactNode }) {
 ### Compound Components
 
 ```typescript
-const TabsContext = createContext<{
+interface TabsContextValue {
   activeTab: string
   setActiveTab: (tab: string) => void
-} | undefined>(undefined)
+}
 
-export function Tabs({ children, defaultTab }: { children: React.ReactNode; defaultTab: string }) {
+const TabsContext = createContext<TabsContextValue | undefined>(undefined)
+
+export function Tabs({ children, defaultTab }: {
+  children: React.ReactNode
+  defaultTab: string
+}) {
   const [activeTab, setActiveTab] = useState(defaultTab)
+
   return (
     <TabsContext.Provider value={{ activeTab, setActiveTab }}>
       {children}
@@ -53,12 +71,19 @@ export function Tabs({ children, defaultTab }: { children: React.ReactNode; defa
   )
 }
 
-export function Tab({ id, children }: { id: string; children: React.ReactNode }) {
-  const ctx = useContext(TabsContext)
-  if (!ctx) throw new Error('Tab must be used within Tabs')
+export function TabList({ children }: { children: React.ReactNode }) {
+  return <div className="tab-list">{children}</div>
+}
+
+export function Tab({ id, children }: { id: string, children: React.ReactNode }) {
+  const context = useContext(TabsContext)
+  if (!context) throw new Error('Tab must be used within Tabs')
 
   return (
-    <button className={ctx.activeTab === id ? 'active' : ''} onClick={() => ctx.setActiveTab(id)}>
+    <button
+      className={context.activeTab === id ? 'active' : ''}
+      onClick={() => context.setActiveTab(id)}
+    >
       {children}
     </button>
   )
@@ -66,12 +91,14 @@ export function Tab({ id, children }: { id: string; children: React.ReactNode })
 
 // Usage
 <Tabs defaultTab="overview">
-  <Tab id="overview">Overview</Tab>
-  <Tab id="details">Details</Tab>
+  <TabList>
+    <Tab id="overview">Overview</Tab>
+    <Tab id="details">Details</Tab>
+  </TabList>
 </Tabs>
 ```
 
-### Render Props
+### Render Props Pattern
 
 ```typescript
 interface DataLoaderProps<T> {
@@ -105,82 +132,123 @@ export function DataLoader<T>({ url, children }: DataLoaderProps<T>) {
 </DataLoader>
 ```
 
-## Custom Hooks
+## Custom Hooks Patterns
 
-### Common Utilities
+### State Management Hook
 
 ```typescript
-// Toggle state
-export function useToggle(initial = false): [boolean, () => void] {
-  const [value, setValue] = useState(initial)
-  const toggle = useCallback(() => setValue(v => !v), [])
+export function useToggle(initialValue = false): [boolean, () => void] {
+  const [value, setValue] = useState(initialValue)
+
+  const toggle = useCallback(() => {
+    setValue(v => !v)
+  }, [])
+
   return [value, toggle]
-}
-
-// Debounced value
-export function useDebounce<T>(value: T, delay: number): T {
-  const [debounced, setDebounced] = useState(value)
-
-  useEffect(() => {
-    const timer = setTimeout(() => setDebounced(value), delay)
-    return () => clearTimeout(timer)
-  }, [value, delay])
-
-  return debounced
 }
 
 // Usage
 const [isOpen, toggleOpen] = useToggle()
-const debouncedQuery = useDebounce(searchQuery, 500)
 ```
 
-### Data Fetching Hook
+### Async Data Fetching Hook
 
 ```typescript
-export function useQuery<T>(key: string, fetcher: () => Promise<T>, options?: {
+interface UseQueryOptions<T> {
   onSuccess?: (data: T) => void
   onError?: (error: Error) => void
   enabled?: boolean
-}) {
+}
+
+export function useQuery<T>(
+  key: string,
+  fetcher: () => Promise<T>,
+  options?: UseQueryOptions<T>
+) {
   const [data, setData] = useState<T | null>(null)
   const [error, setError] = useState<Error | null>(null)
   const [loading, setLoading] = useState(false)
 
   const refetch = useCallback(async () => {
     setLoading(true)
+    setError(null)
+
     try {
       const result = await fetcher()
       setData(result)
       options?.onSuccess?.(result)
     } catch (err) {
-      setError(err as Error)
-      options?.onError?.(err as Error)
+      const error = err as Error
+      setError(error)
+      options?.onError?.(error)
     } finally {
       setLoading(false)
     }
-  }, [fetcher])
+  }, [fetcher, options])
 
   useEffect(() => {
-    if (options?.enabled !== false) refetch()
-  }, [key])
+    if (options?.enabled !== false) {
+      refetch()
+    }
+  }, [key, refetch, options?.enabled])
 
   return { data, error, loading, refetch }
 }
 
 // Usage
-const { data: markets, loading } = useQuery('markets', () =>
-  fetch('/api/markets').then(r => r.json())
+const { data: markets, loading, error, refetch } = useQuery(
+  'markets',
+  () => fetch('/api/markets').then(r => r.json()),
+  {
+    onSuccess: data => console.log('Fetched', data.length, 'markets'),
+    onError: err => console.error('Failed:', err)
+  }
 )
 ```
 
-## State Management
-
-### Context + Reducer
+### Debounce Hook
 
 ```typescript
+export function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value)
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value)
+    }, delay)
+
+    return () => clearTimeout(handler)
+  }, [value, delay])
+
+  return debouncedValue
+}
+
+// Usage
+const [searchQuery, setSearchQuery] = useState('')
+const debouncedQuery = useDebounce(searchQuery, 500)
+
+useEffect(() => {
+  if (debouncedQuery) {
+    performSearch(debouncedQuery)
+  }
+}, [debouncedQuery])
+```
+
+## State Management Patterns
+
+### Context + Reducer Pattern
+
+```typescript
+interface State {
+  markets: Market[]
+  selectedMarket: Market | null
+  loading: boolean
+}
+
 type Action =
   | { type: 'SET_MARKETS'; payload: Market[] }
   | { type: 'SELECT_MARKET'; payload: Market }
+  | { type: 'SET_LOADING'; payload: boolean }
 
 function reducer(state: State, action: Action): State {
   switch (action.type) {
@@ -188,6 +256,8 @@ function reducer(state: State, action: Action): State {
       return { ...state, markets: action.payload }
     case 'SELECT_MARKET':
       return { ...state, selectedMarket: action.payload }
+    case 'SET_LOADING':
+      return { ...state, loading: action.payload }
     default:
       return state
   }
@@ -199,7 +269,12 @@ const MarketContext = createContext<{
 } | undefined>(undefined)
 
 export function MarketProvider({ children }: { children: React.ReactNode }) {
-  const [state, dispatch] = useReducer(reducer, { markets: [], selectedMarket: null })
+  const [state, dispatch] = useReducer(reducer, {
+    markets: [],
+    selectedMarket: null,
+    loading: false
+  })
+
   return (
     <MarketContext.Provider value={{ state, dispatch }}>
       {children}
@@ -208,81 +283,98 @@ export function MarketProvider({ children }: { children: React.ReactNode }) {
 }
 
 export function useMarkets() {
-  const ctx = useContext(MarketContext)
-  if (!ctx) throw new Error('useMarkets must be used within MarketProvider')
-  return ctx
+  const context = useContext(MarketContext)
+  if (!context) throw new Error('useMarkets must be used within MarketProvider')
+  return context
 }
 ```
 
-## Performance
+## Performance Optimization
 
 ### Memoization
 
 ```typescript
-// useMemo for expensive computations (spread to avoid mutation)
-const sortedMarkets = useMemo(() =>
-  [...markets].sort((a, b) => b.volume - a.volume),
-  [markets]
-)
+// ✅ useMemo for expensive computations
+const sortedMarkets = useMemo(() => {
+  return markets.sort((a, b) => b.volume - a.volume)
+}, [markets])
 
-// useCallback for functions passed to children
+// ✅ useCallback for functions passed to children
 const handleSearch = useCallback((query: string) => {
   setSearchQuery(query)
 }, [])
 
-// React.memo for pure components
-export const MarketCard = React.memo<MarketCardProps>(({ market }) => (
-  <div className="market-card">
-    <h3>{market.name}</h3>
-  </div>
-))
+// ✅ React.memo for pure components
+export const MarketCard = React.memo<MarketCardProps>(({ market }) => {
+  return (
+    <div className="market-card">
+      <h3>{market.name}</h3>
+      <p>{market.description}</p>
+    </div>
+  )
+})
 ```
 
-### Code Splitting
+### Code Splitting & Lazy Loading
 
 ```typescript
 import { lazy, Suspense } from 'react'
 
+// ✅ Lazy load heavy components
 const HeavyChart = lazy(() => import('./HeavyChart'))
+const ThreeJsBackground = lazy(() => import('./ThreeJsBackground'))
 
 export function Dashboard() {
   return (
-    <Suspense fallback={<ChartSkeleton />}>
-      <HeavyChart data={data} />
-    </Suspense>
+    <div>
+      <Suspense fallback={<ChartSkeleton />}>
+        <HeavyChart data={data} />
+      </Suspense>
+
+      <Suspense fallback={null}>
+        <ThreeJsBackground />
+      </Suspense>
+    </div>
   )
 }
 ```
 
-### Virtualization
+### Virtualization for Long Lists
 
 ```typescript
 import { useVirtualizer } from '@tanstack/react-virtual'
 
-export function VirtualList({ items }: { items: Item[] }) {
+export function VirtualMarketList({ markets }: { markets: Market[] }) {
   const parentRef = useRef<HTMLDivElement>(null)
 
   const virtualizer = useVirtualizer({
-    count: items.length,
+    count: markets.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 100,
-    overscan: 5
+    estimateSize: () => 100,  // Estimated row height
+    overscan: 5  // Extra items to render
   })
 
   return (
     <div ref={parentRef} style={{ height: '600px', overflow: 'auto' }}>
-      <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
-        {virtualizer.getVirtualItems().map(row => (
+      <div
+        style={{
+          height: `${virtualizer.getTotalSize()}px`,
+          position: 'relative'
+        }}
+      >
+        {virtualizer.getVirtualItems().map(virtualRow => (
           <div
-            key={row.index}
+            key={virtualRow.index}
             style={{
               position: 'absolute',
-              top: row.start,
-              height: row.size,
-              width: '100%'
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: `${virtualRow.size}px`,
+              transform: `translateY(${virtualRow.start}px)`
             }}
           >
-            <ItemCard item={items[row.index]} />
+            <MarketCard market={markets[virtualRow.index]} />
           </div>
         ))}
       </div>
@@ -291,58 +383,106 @@ export function VirtualList({ items }: { items: Item[] }) {
 }
 ```
 
-## Form Handling
+## Form Handling Patterns
+
+### Controlled Form with Validation
 
 ```typescript
-interface FormData { name: string; description: string }
-interface FormErrors { name?: string; description?: string }
+interface FormData {
+  name: string
+  description: string
+  endDate: string
+}
 
-export function CreateForm() {
-  const [data, setData] = useState<FormData>({ name: '', description: '' })
+interface FormErrors {
+  name?: string
+  description?: string
+  endDate?: string
+}
+
+export function CreateMarketForm() {
+  const [formData, setFormData] = useState<FormData>({
+    name: '',
+    description: '',
+    endDate: ''
+  })
+
   const [errors, setErrors] = useState<FormErrors>({})
 
   const validate = (): boolean => {
-    const errs: FormErrors = {}
-    if (!data.name.trim()) errs.name = 'Required'
-    if (data.name.length > 200) errs.name = 'Too long'
-    setErrors(errs)
-    return Object.keys(errs).length === 0
+    const newErrors: FormErrors = {}
+
+    if (!formData.name.trim()) {
+      newErrors.name = 'Name is required'
+    } else if (formData.name.length > 200) {
+      newErrors.name = 'Name must be under 200 characters'
+    }
+
+    if (!formData.description.trim()) {
+      newErrors.description = 'Description is required'
+    }
+
+    if (!formData.endDate) {
+      newErrors.endDate = 'End date is required'
+    }
+
+    setErrors(newErrors)
+    return Object.keys(newErrors).length === 0
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
     if (!validate()) return
-    await createMarket(data)
+
+    try {
+      await createMarket(formData)
+      // Success handling
+    } catch (error) {
+      // Error handling
+    }
   }
 
   return (
     <form onSubmit={handleSubmit}>
       <input
-        value={data.name}
-        onChange={e => setData(prev => ({ ...prev, name: e.target.value }))}
+        value={formData.name}
+        onChange={e => setFormData(prev => ({ ...prev, name: e.target.value }))}
+        placeholder="Market name"
       />
       {errors.name && <span className="error">{errors.name}</span>}
-      <button type="submit">Create</button>
+
+      {/* Other fields */}
+
+      <button type="submit">Create Market</button>
     </form>
   )
 }
 ```
 
-## Error Boundary
+## Error Boundary Pattern
 
 ```typescript
+interface ErrorBoundaryState {
+  hasError: boolean
+  error: Error | null
+}
+
 export class ErrorBoundary extends React.Component<
   { children: React.ReactNode },
-  { hasError: boolean; error: Error | null }
+  ErrorBoundaryState
 > {
-  state = { hasError: false, error: null }
+  state: ErrorBoundaryState = {
+    hasError: false,
+    error: null
+  }
 
-  static getDerivedStateFromError(error: Error) {
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { hasError: true, error }
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error('Error boundary:', error, errorInfo)
+    console.error('Error boundary caught:', error, errorInfo)
   }
 
   render() {
@@ -350,60 +490,79 @@ export class ErrorBoundary extends React.Component<
       return (
         <div className="error-fallback">
           <h2>Something went wrong</h2>
-          <button onClick={() => this.setState({ hasError: false })}>Retry</button>
+          <p>{this.state.error?.message}</p>
+          <button onClick={() => this.setState({ hasError: false })}>
+            Try again
+          </button>
         </div>
       )
     }
+
     return this.props.children
   }
 }
 
 // Usage
-<ErrorBoundary><App /></ErrorBoundary>
+<ErrorBoundary>
+  <App />
+</ErrorBoundary>
 ```
 
-## Animations
+## Animation Patterns
+
+### Framer Motion Animations
 
 ```typescript
 import { motion, AnimatePresence } from 'framer-motion'
 
-// List animations
-export function AnimatedList({ items }: { items: Item[] }) {
+// ✅ List animations
+export function AnimatedMarketList({ markets }: { markets: Market[] }) {
   return (
     <AnimatePresence>
-      {items.map(item => (
+      {markets.map(market => (
         <motion.div
-          key={item.id}
+          key={market.id}
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -20 }}
+          transition={{ duration: 0.3 }}
         >
-          <ItemCard item={item} />
+          <MarketCard market={market} />
         </motion.div>
       ))}
     </AnimatePresence>
   )
 }
 
-// Modal animation
+// ✅ Modal animations
 export function Modal({ isOpen, onClose, children }: ModalProps) {
   return (
     <AnimatePresence>
       {isOpen && (
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.95 }}
-        >
-          {children}
-        </motion.div>
+        <>
+          <motion.div
+            className="modal-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={onClose}
+          />
+          <motion.div
+            className="modal-content"
+            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.9, y: 20 }}
+          >
+            {children}
+          </motion.div>
+        </>
       )}
     </AnimatePresence>
   )
 }
 ```
 
-## Accessibility
+## Accessibility Patterns
 
 ### Keyboard Navigation
 
@@ -423,6 +582,7 @@ export function Dropdown({ options, onSelect }: DropdownProps) {
         setActiveIndex(i => Math.max(i - 1, 0))
         break
       case 'Enter':
+        e.preventDefault()
         onSelect(options[activeIndex])
         setIsOpen(false)
         break
@@ -433,8 +593,13 @@ export function Dropdown({ options, onSelect }: DropdownProps) {
   }
 
   return (
-    <div role="combobox" aria-expanded={isOpen} onKeyDown={handleKeyDown}>
-      {/* Implementation */}
+    <div
+      role="combobox"
+      aria-expanded={isOpen}
+      aria-haspopup="listbox"
+      onKeyDown={handleKeyDown}
+    >
+      {/* Dropdown implementation */}
     </div>
   )
 }
@@ -445,25 +610,33 @@ export function Dropdown({ options, onSelect }: DropdownProps) {
 ```typescript
 export function Modal({ isOpen, onClose, children }: ModalProps) {
   const modalRef = useRef<HTMLDivElement>(null)
-  const prevFocus = useRef<HTMLElement | null>(null)
+  const previousFocusRef = useRef<HTMLElement | null>(null)
 
   useEffect(() => {
     if (isOpen) {
-      prevFocus.current = document.activeElement as HTMLElement
+      // Save currently focused element
+      previousFocusRef.current = document.activeElement as HTMLElement
+
+      // Focus modal
       modalRef.current?.focus()
     } else {
-      prevFocus.current?.focus()
+      // Restore focus when closing
+      previousFocusRef.current?.focus()
     }
   }, [isOpen])
 
-  if (!isOpen) return null
-
-  return (
-    <div ref={modalRef} role="dialog" aria-modal tabIndex={-1} onKeyDown={e => e.key === 'Escape' && onClose()}>
+  return isOpen ? (
+    <div
+      ref={modalRef}
+      role="dialog"
+      aria-modal="true"
+      tabIndex={-1}
+      onKeyDown={e => e.key === 'Escape' && onClose()}
+    >
       {children}
     </div>
-  )
+  ) : null
 }
 ```
 
-**Remember**: Choose patterns that fit your project complexity. Start simple, add abstraction when needed.
+**Remember**: Modern frontend patterns enable maintainable, performant user interfaces. Choose patterns that fit your project complexity.

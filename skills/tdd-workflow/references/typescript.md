@@ -119,17 +119,126 @@ afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
 ```
 
+### Supabase Mock
+
+```typescript
+jest.mock('@/lib/supabase', () => ({
+  supabase: {
+    from: jest.fn(() => ({
+      select: jest.fn(() => ({
+        eq: jest.fn(() => Promise.resolve({
+          data: [{ id: 1, name: 'Test Market' }],
+          error: null
+        }))
+      }))
+    }))
+  }
+}))
+```
+
+### Redis Mock
+
+```typescript
+jest.mock('@/lib/redis', () => ({
+  searchMarketsByVector: jest.fn(() => Promise.resolve([
+    { slug: 'test-market', similarity_score: 0.95 }
+  ])),
+  checkRedisHealth: jest.fn(() => Promise.resolve({ connected: true }))
+}))
+```
+
+### OpenAI Mock
+
+```typescript
+jest.mock('@/lib/openai', () => ({
+  generateEmbedding: jest.fn(() => Promise.resolve(
+    new Array(1536).fill(0.1) // Mock 1536-dim embedding
+  ))
+}))
+```
+
+## Common Testing Mistakes to Avoid
+
+### ❌ WRONG: Testing Implementation Details
+
+```typescript
+// Don't test internal state
+expect(component.state.count).toBe(5)
+```
+
+### ✅ CORRECT: Test User-Visible Behavior
+
+```typescript
+// Test what users see
+expect(screen.getByText('Count: 5')).toBeInTheDocument()
+```
+
+### ❌ WRONG: Brittle Selectors
+
+```typescript
+// Breaks easily
+await page.click('.css-class-xyz')
+```
+
+### ✅ CORRECT: Semantic Selectors
+
+```typescript
+// Resilient to changes
+await page.click('button:has-text("Submit")')
+await page.click('[data-testid="submit-button"]')
+```
+
+### ❌ WRONG: No Test Isolation
+
+```typescript
+// Tests depend on each other
+test('creates user', () => { /* ... */ })
+test('updates same user', () => { /* depends on previous test */ })
+```
+
+### ✅ CORRECT: Independent Tests
+
+```typescript
+// Each test sets up its own data
+test('creates user', () => {
+  const user = createTestUser()
+  // Test logic
+})
+
+test('updates user', () => {
+  const user = createTestUser()
+  // Update logic
+})
+```
+
+## Coverage Thresholds
+
+```json
+{
+  "jest": {
+    "coverageThresholds": {
+      "global": {
+        "branches": 80,
+        "functions": 80,
+        "lines": 80,
+        "statements": 80
+      }
+    }
+  }
+}
+```
+
 ## Commands
 
 ```bash
 # Run tests
 npm test
 
-# Watch mode
+# Watch mode during development (auto-run on file changes)
 npm test -- --watch
 
-# Coverage
-npm test -- --coverage
+# Coverage report
+npm run test:coverage
 
 # E2E tests
 npx playwright test
@@ -138,12 +247,21 @@ npx playwright test
 npx playwright test --ui
 ```
 
+## Continuous Testing
+
+### Pre-Commit Hook
+
+```bash
+# Runs before every commit
+npm test && npm run lint
+```
+
 ## CI/CD
 
 ```yaml
-- uses: actions/setup-node@v4
-  with:
-    node-version: '20'
-- run: npm ci
-- run: npm test -- --coverage
+# GitHub Actions
+- name: Run Tests
+  run: npm test -- --coverage
+- name: Upload Coverage
+  uses: codecov/codecov-action@v3
 ```

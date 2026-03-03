@@ -1,755 +1,598 @@
 ---
 name: backend-patterns
-description: Backend architecture patterns, API design, database optimization, and server-side best practices for Go development.
+description: Backend architecture patterns, API design, database optimization, and server-side best practices for Node.js, Express, and Next.js API routes.
+origin: ECC
 ---
 
-# Go Backend Development Patterns
+# Backend Development Patterns
 
-## Constants & Configuration
+Backend architecture patterns and best practices for scalable server-side applications.
 
-### Avoid Magic Numbers
+## When to Activate
 
-Never hardcode configuration values directly in code. Use named constants with meaningful names that explain their purpose.
-
-```go
-// BAD: Magic numbers scattered in code
-func (s *Server) process(ctx context.Context) error {
-    ctx, cancel := context.WithTimeout(ctx, 30*time.Second)  // What is 30?
-    defer cancel()
-    return s.repo.FetchWithLimit(ctx, 100)  // Why 100?
-}
-
-// GOOD: Named constants explain intent
-const (
-    DefaultRequestTimeout = 30 * time.Second
-    DefaultFetchLimit     = 100
-)
-
-func (s *Server) process(ctx context.Context) error {
-    ctx, cancel := context.WithTimeout(ctx, DefaultRequestTimeout)
-    defer cancel()
-    return s.repo.FetchWithLimit(ctx, DefaultFetchLimit)
-}
-```
-
-### When to Centralize Constants
-
-Use a dedicated `const.go` file when constants are:
-
-- Shared across multiple files in a package
-- Configuration values that may need tuning
-- Part of the package's public API
-
-**Important**: Exported constants must have documentation comments starting with the constant name. This is required by `golint` and enables `go doc` to generate proper documentation.
-
-```go
-// const.go - Package-level configuration constants
-package server
-
-import "time"
-
-// DefaultRequestTimeout is the maximum duration for processing HTTP requests.
-const DefaultRequestTimeout = 30 * time.Second
-
-// DefaultShutdownTimeout is the maximum duration to wait for graceful shutdown.
-const DefaultShutdownTimeout = 30 * time.Second
-
-// DefaultHealthTimeout is the maximum duration for health check probes.
-const DefaultHealthTimeout = 5 * time.Second
-
-// DefaultJobTimeout is the maximum duration for background job execution.
-const DefaultJobTimeout = 30 * time.Second
-
-// Connection pool settings.
-const (
-    // DefaultMaxOpenConns is the maximum number of open database connections.
-    DefaultMaxOpenConns = 25
-    // DefaultMaxIdleConns is the maximum number of idle database connections.
-    DefaultMaxIdleConns = 5
-    // DefaultConnMaxLifetime is the maximum duration a connection may be reused.
-    DefaultConnMaxLifetime = 5 * time.Minute
-    // DefaultConnMaxIdleTime is the maximum duration a connection may be idle.
-    DefaultConnMaxIdleTime = 1 * time.Minute
-)
-
-// Pagination limits.
-const (
-    // DefaultPageSize is the default number of items per page.
-    DefaultPageSize = 20
-    // MaxPageSize is the maximum allowed items per page.
-    MaxPageSize = 100
-)
-
-// Retry and rate limiting settings.
-const (
-    // DefaultRetryCount is the default number of retry attempts.
-    DefaultRetryCount = 3
-    // DefaultBurstLimit is the default burst size for rate limiting.
-    DefaultBurstLimit = 10
-)
-
-// Cache TTL settings.
-const (
-    // DefaultCacheTTL is the default cache entry time-to-live.
-    DefaultCacheTTL = 5 * time.Minute
-    // ShortCacheTTL is used for frequently changing data.
-    ShortCacheTTL = 1 * time.Minute
-    // LongCacheTTL is used for stable, rarely changing data.
-    LongCacheTTL = 1 * time.Hour
-)
-```
-
-### Keep Local When Specific
-
-Constants used only within a single function or closely related code should stay local:
-
-```go
-// errors.go - Domain errors are kept with related code
-var (
-    // ErrNotFound is returned when the requested resource does not exist.
-    ErrNotFound = errors.New("not found")
-    // ErrUnauthorized is returned when authentication is required but missing.
-    ErrUnauthorized = errors.New("unauthorized")
-)
-
-// permissions.go - Permission constants stay with RBAC code
-
-// Permission represents an access control permission level.
-type Permission string
-
-// Permission levels for role-based access control.
-const (
-    // PermRead allows read-only access to resources.
-    PermRead Permission = "read"
-    // PermWrite allows creating and modifying resources.
-    PermWrite Permission = "write"
-    // PermDelete allows removing resources.
-    PermDelete Permission = "delete"
-)
-```
-
-### Make Defaults Overridable
-
-For production code, allow constants to be overridden via configuration:
-
-```go
-// const.go
-
-// DefaultRequestTimeout is the fallback timeout when not configured.
-const DefaultRequestTimeout = 30 * time.Second
-
-// config.go
-
-// Config holds application configuration loaded from environment variables.
-type Config struct {
-    RequestTimeout time.Duration `env:"REQUEST_TIMEOUT" default:"30s"`
-}
-
-// GetRequestTimeout returns the configured timeout or falls back to default.
-func (c *Config) GetRequestTimeout() time.Duration {
-    if c.RequestTimeout > 0 {
-        return c.RequestTimeout
-    }
-    return DefaultRequestTimeout
-}
-```
+- Designing REST or GraphQL API endpoints
+- Implementing repository, service, or controller layers
+- Optimizing database queries (N+1, indexing, connection pooling)
+- Adding caching (Redis, in-memory, HTTP cache headers)
+- Setting up background jobs or async processing
+- Structuring error handling and validation for APIs
+- Building middleware (auth, logging, rate limiting)
 
 ## API Design Patterns
 
-### RESTful Structure
+### RESTful API Structure
 
-```go
-// Resource-based URLs
-// GET    /api/markets           - List
-// GET    /api/markets/{id}      - Get
-// POST   /api/markets           - Create
-// PUT    /api/markets/{id}      - Replace
-// PATCH  /api/markets/{id}      - Update
-// DELETE /api/markets/{id}      - Delete
+```typescript
+// ✅ Resource-based URLs
+GET    /api/markets                 # List resources
+GET    /api/markets/:id             # Get single resource
+POST   /api/markets                 # Create resource
+PUT    /api/markets/:id             # Replace resource
+PATCH  /api/markets/:id             # Update resource
+DELETE /api/markets/:id             # Delete resource
 
-r.Route("/api/markets", func(r chi.Router) {
-    r.Get("/", s.listMarkets)
-    r.Post("/", s.createMarket)
-    r.Route("/{id}", func(r chi.Router) {
-        r.Get("/", s.getMarket)
-        r.Put("/", s.updateMarket)
-        r.Delete("/", s.deleteMarket)
-    })
-})
+// ✅ Query parameters for filtering, sorting, pagination
+GET /api/markets?status=active&sort=volume&limit=20&offset=0
 ```
 
 ### Repository Pattern
 
-```go
-type MarketRepository interface {
-    FindAll(ctx context.Context, filters MarketFilters) ([]Market, error)
-    FindByID(ctx context.Context, id string) (*Market, error)
-    Create(ctx context.Context, market *Market) error
-    Update(ctx context.Context, market *Market) error
-    Delete(ctx context.Context, id string) error
+```typescript
+// Abstract data access logic
+interface MarketRepository {
+  findAll(filters?: MarketFilters): Promise<Market[]>
+  findById(id: string): Promise<Market | null>
+  create(data: CreateMarketDto): Promise<Market>
+  update(id: string, data: UpdateMarketDto): Promise<Market>
+  delete(id: string): Promise<void>
 }
 
-type postgresMarketRepo struct{ db *sql.DB }
+class SupabaseMarketRepository implements MarketRepository {
+  async findAll(filters?: MarketFilters): Promise<Market[]> {
+    let query = supabase.from('markets').select('*')
 
-func (r *postgresMarketRepo) FindByID(ctx context.Context, id string) (*Market, error) {
-    var m Market
-    err := r.db.QueryRowContext(ctx,
-        `SELECT id, name, status FROM markets WHERE id = $1`, id,
-    ).Scan(&m.ID, &m.Name, &m.Status)
-
-    if errors.Is(err, sql.ErrNoRows) {
-        return nil, nil
-    }
-    if err != nil {
-        return nil, fmt.Errorf("query market %s: %w", id, err)
-    }
-    return &m, nil
-}
-```
-
-### Service Layer
-
-```go
-type MarketService struct {
-    repo   MarketRepository
-    cache  Cache
-}
-
-func (s *MarketService) Search(ctx context.Context, query string, limit int) ([]Market, error) {
-    embedding, err := s.embedder.Embed(ctx, query)
-    if err != nil {
-        return nil, fmt.Errorf("generate embedding: %w", err)
+    if (filters?.status) {
+      query = query.eq('status', filters.status)
     }
 
-    results, err := s.vectorDB.Search(ctx, embedding, limit)
-    if err != nil {
-        return nil, fmt.Errorf("vector search: %w", err)
+    if (filters?.limit) {
+      query = query.limit(filters.limit)
     }
 
-    return s.repo.FindByIDs(ctx, extractIDs(results))
+    const { data, error } = await query
+
+    if (error) throw new Error(error.message)
+    return data
+  }
+
+  // Other methods...
 }
 ```
 
-### Middleware
+### Service Layer Pattern
 
-```go
-func AuthMiddleware(verifier TokenVerifier) func(http.Handler) http.Handler {
-    return func(next http.Handler) http.Handler {
-        return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-            token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
-            if token == "" {
-                http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
-                return
-            }
+```typescript
+// Business logic separated from data access
+class MarketService {
+  constructor(private marketRepo: MarketRepository) {}
 
-            user, err := verifier.Verify(r.Context(), token)
-            if err != nil {
-                http.Error(w, `{"error":"invalid token"}`, http.StatusUnauthorized)
-                return
-            }
+  async searchMarkets(query: string, limit: number = 10): Promise<Market[]> {
+    // Business logic
+    const embedding = await generateEmbedding(query)
+    const results = await this.vectorSearch(embedding, limit)
 
-            ctx := context.WithValue(r.Context(), userContextKey, user)
-            next.ServeHTTP(w, r.WithContext(ctx))
-        })
-    }
+    // Fetch full data
+    const markets = await this.marketRepo.findByIds(results.map(r => r.id))
+
+    // Sort by similarity
+    return markets.sort((a, b) => {
+      const scoreA = results.find(r => r.id === a.id)?.score || 0
+      const scoreB = results.find(r => r.id === b.id)?.score || 0
+      return scoreA - scoreB
+    })
+  }
+
+  private async vectorSearch(embedding: number[], limit: number) {
+    // Vector search implementation
+  }
 }
-
-// Compose middleware
-r.Use(middleware.RequestID)
-r.Use(middleware.Logger)
-r.Use(middleware.Recoverer)
-r.Use(middleware.Timeout(DefaultRequestTimeout))
 ```
 
-### Handler Pattern
+### Middleware Pattern
 
-```go
-func (s *Server) getMarket(w http.ResponseWriter, r *http.Request) {
-    market, err := s.marketService.GetByID(r.Context(), chi.URLParam(r, "id"))
-    if err != nil {
-        s.handleError(w, r, err)
-        return
+```typescript
+// Request/response processing pipeline
+export function withAuth(handler: NextApiHandler): NextApiHandler {
+  return async (req, res) => {
+    const token = req.headers.authorization?.replace('Bearer ', '')
+
+    if (!token) {
+      return res.status(401).json({ error: 'Unauthorized' })
     }
-    if market == nil {
-        s.respondError(w, http.StatusNotFound, "not found")
-        return
+
+    try {
+      const user = await verifyToken(token)
+      req.user = user
+      return handler(req, res)
+    } catch (error) {
+      return res.status(401).json({ error: 'Invalid token' })
     }
-    s.respondJSON(w, http.StatusOK, market)
+  }
 }
 
-func (s *Server) respondJSON(w http.ResponseWriter, status int, data any) {
-    w.Header().Set("Content-Type", "application/json")
-    w.WriteHeader(status)
-    json.NewEncoder(w).Encode(map[string]any{"success": true, "data": data})
-}
+// Usage
+export default withAuth(async (req, res) => {
+  // Handler has access to req.user
+})
 ```
 
 ## Database Patterns
 
 ### Query Optimization
 
-```go
-// GOOD: Select specific columns
-rows, _ := db.QueryContext(ctx,
-    `SELECT id, name, status FROM markets WHERE status = $1 LIMIT $2`,
-    "active", 10)
+```typescript
+// ✅ GOOD: Select only needed columns
+const { data } = await supabase
+  .from('markets')
+  .select('id, name, status, volume')
+  .eq('status', 'active')
+  .order('volume', { ascending: false })
+  .limit(10)
 
-// GOOD: Use prepared statements for repeated queries
-stmt, _ := db.PrepareContext(ctx, `SELECT id, name FROM markets WHERE status = $1`)
-defer stmt.Close()
+// ❌ BAD: Select everything
+const { data } = await supabase
+  .from('markets')
+  .select('*')
 ```
 
-### N+1 Prevention
+### N+1 Query Prevention
 
-```go
-// BAD: N+1 queries
-for i := range markets {
-    markets[i].Creator, _ = userRepo.FindByID(ctx, markets[i].CreatorID)
+```typescript
+// ❌ BAD: N+1 query problem
+const markets = await getMarkets()
+for (const market of markets) {
+  market.creator = await getUser(market.creator_id)  // N queries
 }
 
-// GOOD: Batch fetch
-creatorIDs := uniqueIDs(markets, func(m Market) string { return m.CreatorID })
-creators, _ := userRepo.FindByIDs(ctx, creatorIDs)
-creatorMap := toMap(creators, func(u User) string { return u.ID })
+// ✅ GOOD: Batch fetch
+const markets = await getMarkets()
+const creatorIds = markets.map(m => m.creator_id)
+const creators = await getUsers(creatorIds)  // 1 query
+const creatorMap = new Map(creators.map(c => [c.id, c]))
 
-for i := range markets {
-    markets[i].Creator = creatorMap[markets[i].CreatorID]
-}
-```
-
-### Transactions
-
-```go
-func WithTx(ctx context.Context, db *sql.DB, fn func(tx *sql.Tx) error) error {
-    tx, err := db.BeginTx(ctx, nil)
-    if err != nil {
-        return err
-    }
-    defer func() {
-        if p := recover(); p != nil {
-            tx.Rollback()
-            panic(p)
-        }
-    }()
-
-    if err := fn(tx); err != nil {
-        tx.Rollback()
-        return err
-    }
-    return tx.Commit()
-}
-
-// Usage
-err := WithTx(ctx, db, func(tx *sql.Tx) error {
-    if _, err := tx.ExecContext(ctx, `INSERT INTO markets ...`); err != nil {
-        return err
-    }
-    if _, err := tx.ExecContext(ctx, `INSERT INTO positions ...`); err != nil {
-        return err
-    }
-    return nil
+markets.forEach(market => {
+  market.creator = creatorMap.get(market.creator_id)
 })
 ```
 
-### Connection Pool
+### Transaction Pattern
 
-```go
-db.SetMaxOpenConns(DefaultMaxOpenConns)
-db.SetMaxIdleConns(DefaultMaxIdleConns)
-db.SetConnMaxLifetime(DefaultConnMaxLifetime)
-db.SetConnMaxIdleTime(DefaultConnMaxIdleTime)
-```
+```typescript
+async function createMarketWithPosition(
+  marketData: CreateMarketDto,
+  positionData: CreatePositionDto
+) {
+  // Use Supabase transaction
+  const { data, error } = await supabase.rpc('create_market_with_position', {
+    market_data: marketData,
+    position_data: positionData
+  })
 
-## Caching
-
-### Cache-Aside with Singleflight
-
-```go
-import "golang.org/x/sync/singleflight"
-
-type MarketCache struct {
-    redis *redis.Client
-    repo  MarketRepository
-    sf    singleflight.Group
-    ttl   time.Duration
+  if (error) throw new Error('Transaction failed')
+  return data
 }
 
-func (c *MarketCache) Get(ctx context.Context, id string) (*Market, error) {
-    key := "market:" + id
-
-    // Try cache
-    if data, err := c.redis.Get(ctx, key).Bytes(); err == nil {
-        var m Market
-        json.Unmarshal(data, &m)
-        return &m, nil
-    }
-
-    // Singleflight prevents cache stampede
-    result, err, _ := c.sf.Do(key, func() (any, error) {
-        market, err := c.repo.FindByID(ctx, id)
-        if err != nil {
-            return nil, err
-        }
-        if market != nil {
-            data, _ := json.Marshal(market)
-            c.redis.Set(ctx, key, data, c.ttl)
-        }
-        return market, nil
-    })
-
-    if err != nil {
-        return nil, err
-    }
-    return result.(*Market), nil
-}
-```
-
-## Error Handling
-
-### Domain Errors
-
-```go
-// Domain errors for consistent error handling across the application.
-var (
-    // ErrNotFound is returned when the requested resource does not exist.
-    ErrNotFound = errors.New("not found")
-    // ErrUnauthorized is returned when authentication is required but missing or invalid.
-    ErrUnauthorized = errors.New("unauthorized")
-    // ErrForbidden is returned when the user lacks permission for the requested action.
-    ErrForbidden = errors.New("forbidden")
+// SQL function in Supabase
+CREATE OR REPLACE FUNCTION create_market_with_position(
+  market_data jsonb,
+  position_data jsonb
 )
+RETURNS jsonb
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  -- Start transaction automatically
+  INSERT INTO markets VALUES (market_data);
+  INSERT INTO positions VALUES (position_data);
+  RETURN jsonb_build_object('success', true);
+EXCEPTION
+  WHEN OTHERS THEN
+    -- Rollback happens automatically
+    RETURN jsonb_build_object('success', false, 'error', SQLERRM);
+END;
+$$;
+```
 
-// ValidationError represents a field-level validation failure.
-type ValidationError struct {
-    Field   string `json:"field"`
-    Message string `json:"message"`
-}
+## Caching Strategies
 
-func (e *ValidationError) Error() string {
-    return fmt.Sprintf("%s: %s", e.Field, e.Message)
+### Redis Caching Layer
+
+```typescript
+class CachedMarketRepository implements MarketRepository {
+  constructor(
+    private baseRepo: MarketRepository,
+    private redis: RedisClient
+  ) {}
+
+  async findById(id: string): Promise<Market | null> {
+    // Check cache first
+    const cached = await this.redis.get(`market:${id}`)
+
+    if (cached) {
+      return JSON.parse(cached)
+    }
+
+    // Cache miss - fetch from database
+    const market = await this.baseRepo.findById(id)
+
+    if (market) {
+      // Cache for 5 minutes
+      await this.redis.setex(`market:${id}`, 300, JSON.stringify(market))
+    }
+
+    return market
+  }
+
+  async invalidateCache(id: string): Promise<void> {
+    await this.redis.del(`market:${id}`)
+  }
 }
 ```
 
-### Centralized Handler
+### Cache-Aside Pattern
 
-```go
-func (s *Server) handleError(w http.ResponseWriter, r *http.Request, err error) {
-    switch {
-    case errors.Is(err, ErrNotFound):
-        s.respondError(w, http.StatusNotFound, "not found")
-    case errors.Is(err, ErrUnauthorized):
-        s.respondError(w, http.StatusUnauthorized, "unauthorized")
-    case errors.Is(err, ErrForbidden):
-        s.respondError(w, http.StatusForbidden, "forbidden")
-    default:
-        s.logger.Error("unexpected error", "error", err, "path", r.URL.Path)
-        s.respondError(w, http.StatusInternalServerError, "internal error")
-    }
+```typescript
+async function getMarketWithCache(id: string): Promise<Market> {
+  const cacheKey = `market:${id}`
+
+  // Try cache
+  const cached = await redis.get(cacheKey)
+  if (cached) return JSON.parse(cached)
+
+  // Cache miss - fetch from DB
+  const market = await db.markets.findUnique({ where: { id } })
+
+  if (!market) throw new Error('Market not found')
+
+  // Update cache
+  await redis.setex(cacheKey, 300, JSON.stringify(market))
+
+  return market
 }
 ```
 
-### Retry with Backoff
+## Error Handling Patterns
 
-```go
-func WithRetry[T any](ctx context.Context, maxAttempts int, fn func() (T, error)) (T, error) {
-    var zero T
-    var lastErr error
+### Centralized Error Handler
 
-    for i := 0; i < maxAttempts; i++ {
-        if result, err := fn(); err == nil {
-            return result, nil
-        } else {
-            lastErr = err
-        }
-
-        if i < maxAttempts-1 {
-            delay := time.Duration(1<<uint(i)) * time.Second // 1s, 2s, 4s...
-            select {
-            case <-ctx.Done():
-                return zero, ctx.Err()
-            case <-time.After(delay):
-            }
-        }
-    }
-    return zero, fmt.Errorf("max retries: %w", lastErr)
+```typescript
+class ApiError extends Error {
+  constructor(
+    public statusCode: number,
+    public message: string,
+    public isOperational = true
+  ) {
+    super(message)
+    Object.setPrototypeOf(this, ApiError.prototype)
+  }
 }
+
+export function errorHandler(error: unknown, req: Request): Response {
+  if (error instanceof ApiError) {
+    return NextResponse.json({
+      success: false,
+      error: error.message
+    }, { status: error.statusCode })
+  }
+
+  if (error instanceof z.ZodError) {
+    return NextResponse.json({
+      success: false,
+      error: 'Validation failed',
+      details: error.errors
+    }, { status: 400 })
+  }
+
+  // Log unexpected errors
+  console.error('Unexpected error:', error)
+
+  return NextResponse.json({
+    success: false,
+    error: 'Internal server error'
+  }, { status: 500 })
+}
+
+// Usage
+export async function GET(request: Request) {
+  try {
+    const data = await fetchData()
+    return NextResponse.json({ success: true, data })
+  } catch (error) {
+    return errorHandler(error, request)
+  }
+}
+```
+
+### Retry with Exponential Backoff
+
+```typescript
+async function fetchWithRetry<T>(
+  fn: () => Promise<T>,
+  maxRetries = 3
+): Promise<T> {
+  let lastError: Error
+
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await fn()
+    } catch (error) {
+      lastError = error as Error
+
+      if (i < maxRetries - 1) {
+        // Exponential backoff: 1s, 2s, 4s
+        const delay = Math.pow(2, i) * 1000
+        await new Promise(resolve => setTimeout(resolve, delay))
+      }
+    }
+  }
+
+  throw lastError!
+}
+
+// Usage
+const data = await fetchWithRetry(() => fetchFromAPI())
 ```
 
 ## Authentication & Authorization
 
-### JWT Validation
+### JWT Token Validation
 
-```go
-type Claims struct {
-    UserID string `json:"user_id"`
-    Role   string `json:"role"`
-    jwt.RegisteredClaims
+```typescript
+import jwt from 'jsonwebtoken'
+
+interface JWTPayload {
+  userId: string
+  email: string
+  role: 'admin' | 'user'
 }
 
-func (v *TokenVerifier) Verify(ctx context.Context, token string) (*Claims, error) {
-    parsed, err := jwt.ParseWithClaims(token, &Claims{}, func(t *jwt.Token) (any, error) {
-        if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
-            return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
-        }
-        return v.secret, nil
-    })
-    if err != nil {
-        return nil, err
-    }
+export function verifyToken(token: string): JWTPayload {
+  try {
+    const payload = jwt.verify(token, process.env.JWT_SECRET!) as JWTPayload
+    return payload
+  } catch (error) {
+    throw new ApiError(401, 'Invalid token')
+  }
+}
 
-    claims, ok := parsed.Claims.(*Claims)
-    if !ok || !parsed.Valid {
-        return nil, errors.New("invalid token")
-    }
-    return claims, nil
+export async function requireAuth(request: Request) {
+  const token = request.headers.get('authorization')?.replace('Bearer ', '')
+
+  if (!token) {
+    throw new ApiError(401, 'Missing authorization token')
+  }
+
+  return verifyToken(token)
+}
+
+// Usage in API route
+export async function GET(request: Request) {
+  const user = await requireAuth(request)
+
+  const data = await getDataForUser(user.userId)
+
+  return NextResponse.json({ success: true, data })
 }
 ```
 
-### RBAC
+### Role-Based Access Control
 
-```go
-// Permission represents an access control permission level.
-type Permission string
+```typescript
+type Permission = 'read' | 'write' | 'delete' | 'admin'
 
-// Permission levels for role-based access control.
-const (
-    // PermRead allows read-only access to resources.
-    PermRead Permission = "read"
-    // PermWrite allows creating and modifying resources.
-    PermWrite Permission = "write"
-    // PermDelete allows removing resources.
-    PermDelete Permission = "delete"
-)
-
-var rolePerms = map[string][]Permission{
-    "admin": {PermRead, PermWrite, PermDelete},
-    "user":  {PermRead, PermWrite},
+interface User {
+  id: string
+  role: 'admin' | 'moderator' | 'user'
 }
 
-// RequirePermission returns middleware that enforces the given permission.
-func RequirePermission(perm Permission) func(http.Handler) http.Handler {
-    return func(next http.Handler) http.Handler {
-        return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-            claims := MustUserFromContext(r.Context())
-            if !slices.Contains(rolePerms[claims.Role], perm) {
-                http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
-                return
-            }
-            next.ServeHTTP(w, r)
-        })
+const rolePermissions: Record<User['role'], Permission[]> = {
+  admin: ['read', 'write', 'delete', 'admin'],
+  moderator: ['read', 'write', 'delete'],
+  user: ['read', 'write']
+}
+
+export function hasPermission(user: User, permission: Permission): boolean {
+  return rolePermissions[user.role].includes(permission)
+}
+
+export function requirePermission(permission: Permission) {
+  return (handler: (request: Request, user: User) => Promise<Response>) => {
+    return async (request: Request) => {
+      const user = await requireAuth(request)
+
+      if (!hasPermission(user, permission)) {
+        throw new ApiError(403, 'Insufficient permissions')
+      }
+
+      return handler(request, user)
     }
+  }
 }
+
+// Usage - HOF wraps the handler
+export const DELETE = requirePermission('delete')(
+  async (request: Request, user: User) => {
+    // Handler receives authenticated user with verified permission
+    return new Response('Deleted', { status: 200 })
+  }
+)
 ```
 
 ## Rate Limiting
 
-```go
-import "golang.org/x/time/rate"
+### Simple In-Memory Rate Limiter
 
-type RateLimiter struct {
-    limiters sync.Map
-    rate     rate.Limit
-    burst    int
-}
+```typescript
+class RateLimiter {
+  private requests = new Map<string, number[]>()
 
-func (l *RateLimiter) Allow(key string) bool {
-    limiter, _ := l.limiters.LoadOrStore(key, rate.NewLimiter(l.rate, l.burst))
-    return limiter.(*rate.Limiter).Allow()
-}
+  async checkLimit(
+    identifier: string,
+    maxRequests: number,
+    windowMs: number
+  ): Promise<boolean> {
+    const now = Date.now()
+    const requests = this.requests.get(identifier) || []
 
-func RateLimitMiddleware(limiter *RateLimiter) func(http.Handler) http.Handler {
-    return func(next http.Handler) http.Handler {
-        return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-            if !limiter.Allow(r.RemoteAddr) {
-                http.Error(w, `{"error":"rate limit exceeded"}`, http.StatusTooManyRequests)
-                return
-            }
-            next.ServeHTTP(w, r)
-        })
-    }
-}
-```
+    // Remove old requests outside window
+    const recentRequests = requests.filter(time => now - time < windowMs)
 
-## Background Jobs
-
-### Worker Pool
-
-```go
-type Job interface {
-    Execute(ctx context.Context) error
-}
-
-type WorkerPool struct {
-    jobs chan Job
-    wg   sync.WaitGroup
-}
-
-func NewWorkerPool(workers, queueSize int) *WorkerPool {
-    p := &WorkerPool{jobs: make(chan Job, queueSize)}
-    for i := 0; i < workers; i++ {
-        p.wg.Add(1)
-        go p.worker()
-    }
-    return p
-}
-
-func (p *WorkerPool) worker() {
-    defer p.wg.Done()
-    for job := range p.jobs {
-        ctx, cancel := context.WithTimeout(context.Background(), DefaultJobTimeout)
-        if err := job.Execute(ctx); err != nil {
-            log.Printf("job failed: %v", err)
-        }
-        cancel()
-    }
-}
-
-func (p *WorkerPool) Submit(job Job)  { p.jobs <- job }
-func (p *WorkerPool) Shutdown()       { close(p.jobs); p.wg.Wait() }
-```
-
-### Graceful Shutdown
-
-```go
-func main() {
-    srv := &http.Server{Addr: ":8080", Handler: router}
-
-    go func() {
-        if err := srv.ListenAndServe(); err != http.ErrServerClosed {
-            log.Fatal(err)
-        }
-    }()
-
-    quit := make(chan os.Signal, 1)
-    signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-    <-quit
-
-    ctx, cancel := context.WithTimeout(context.Background(), DefaultShutdownTimeout)
-    defer cancel()
-
-    srv.Shutdown(ctx)
-    pool.Shutdown()
-    db.Close()
-}
-```
-
-## Logging
-
-| Library | Use Case |
-|---------|----------|
-| `zap` | High-performance, structured logging, production-grade |
-| `log/slog` | New projects (Go 1.21+), standard library |
-| `logrus` | Rich ecosystem, hooks for external services |
-| `zerolog` | High-performance, zero allocation |
-
-### Zap
-
-```go
-import "go.uber.org/zap"
-
-// Production logger (JSON, optimized)
-logger, _ := zap.NewProduction()
-defer logger.Sync()
-
-logger.Info("request completed",
-    zap.String("method", r.Method),
-    zap.String("path", r.URL.Path),
-    zap.Int("status", status),
-    zap.Duration("duration", elapsed),
-)
-
-// With error
-logger.Error("operation failed",
-    zap.Error(err),
-    zap.String("user_id", userID),
-)
-
-// Sugar logger (simpler API, slightly slower)
-sugar := logger.Sugar()
-sugar.Infow("request completed",
-    "method", r.Method,
-    "path", r.URL.Path,
-    "status", status,
-)
-
-// Child logger with preset fields
-requestLogger := logger.With(
-    zap.String("request_id", requestID),
-    zap.String("user_id", userID),
-)
-requestLogger.Info("processing request")
-```
-
-### slog (Standard Library)
-
-```go
-logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-    Level: slog.LevelInfo,
-}))
-
-logger.Info("request completed",
-    "method", r.Method,
-    "path", r.URL.Path,
-    "status", status,
-    "duration_ms", elapsed.Milliseconds(),
-)
-```
-
-### Logrus
-
-```go
-import "github.com/sirupsen/logrus"
-
-logger := logrus.New()
-logger.SetFormatter(&logrus.JSONFormatter{})
-
-logger.WithFields(logrus.Fields{
-    "method":   r.Method,
-    "path":     r.URL.Path,
-    "status":   status,
-}).Info("request completed")
-
-// With error
-logger.WithError(err).Error("operation failed")
-```
-
-## Health & Metrics
-
-```go
-func (s *Server) healthCheck(w http.ResponseWriter, r *http.Request) {
-    ctx, cancel := context.WithTimeout(r.Context(), DefaultHealthTimeout)
-    defer cancel()
-
-    checks := map[string]string{"database": "healthy", "redis": "healthy"}
-    status := http.StatusOK
-
-    if err := s.db.PingContext(ctx); err != nil {
-        checks["database"] = "unhealthy"
-        status = http.StatusServiceUnavailable
-    }
-    if err := s.redis.Ping(ctx).Err(); err != nil {
-        checks["redis"] = "unhealthy"
-        status = http.StatusServiceUnavailable
+    if (recentRequests.length >= maxRequests) {
+      return false  // Rate limit exceeded
     }
 
-    w.WriteHeader(status)
-    json.NewEncoder(w).Encode(checks)
+    // Add current request
+    recentRequests.push(now)
+    this.requests.set(identifier, recentRequests)
+
+    return true
+  }
+}
+
+const limiter = new RateLimiter()
+
+export async function GET(request: Request) {
+  const ip = request.headers.get('x-forwarded-for') || 'unknown'
+
+  const allowed = await limiter.checkLimit(ip, 100, 60000)  // 100 req/min
+
+  if (!allowed) {
+    return NextResponse.json({
+      error: 'Rate limit exceeded'
+    }, { status: 429 })
+  }
+
+  // Continue with request
 }
 ```
 
-```go
-// Prometheus metrics
-var httpRequests = prometheus.NewCounterVec(
-    prometheus.CounterOpts{Name: "http_requests_total"},
-    []string{"method", "path", "status"},
-)
+## Background Jobs & Queues
 
-var httpDuration = prometheus.NewHistogramVec(
-    prometheus.HistogramOpts{Name: "http_request_duration_seconds"},
-    []string{"method", "path"},
-)
+### Simple Queue Pattern
 
-r.Handle("/metrics", promhttp.Handler())
+```typescript
+class JobQueue<T> {
+  private queue: T[] = []
+  private processing = false
+
+  async add(job: T): Promise<void> {
+    this.queue.push(job)
+
+    if (!this.processing) {
+      this.process()
+    }
+  }
+
+  private async process(): Promise<void> {
+    this.processing = true
+
+    while (this.queue.length > 0) {
+      const job = this.queue.shift()!
+
+      try {
+        await this.execute(job)
+      } catch (error) {
+        console.error('Job failed:', error)
+      }
+    }
+
+    this.processing = false
+  }
+
+  private async execute(job: T): Promise<void> {
+    // Job execution logic
+  }
+}
+
+// Usage for indexing markets
+interface IndexJob {
+  marketId: string
+}
+
+const indexQueue = new JobQueue<IndexJob>()
+
+export async function POST(request: Request) {
+  const { marketId } = await request.json()
+
+  // Add to queue instead of blocking
+  await indexQueue.add({ marketId })
+
+  return NextResponse.json({ success: true, message: 'Job queued' })
+}
 ```
 
-**Remember**: Choose patterns that match your complexity. Start simple, add abstraction when needed.
+## Logging & Monitoring
+
+### Structured Logging
+
+```typescript
+interface LogContext {
+  userId?: string
+  requestId?: string
+  method?: string
+  path?: string
+  [key: string]: unknown
+}
+
+class Logger {
+  log(level: 'info' | 'warn' | 'error', message: string, context?: LogContext) {
+    const entry = {
+      timestamp: new Date().toISOString(),
+      level,
+      message,
+      ...context
+    }
+
+    console.log(JSON.stringify(entry))
+  }
+
+  info(message: string, context?: LogContext) {
+    this.log('info', message, context)
+  }
+
+  warn(message: string, context?: LogContext) {
+    this.log('warn', message, context)
+  }
+
+  error(message: string, error: Error, context?: LogContext) {
+    this.log('error', message, {
+      ...context,
+      error: error.message,
+      stack: error.stack
+    })
+  }
+}
+
+const logger = new Logger()
+
+// Usage
+export async function GET(request: Request) {
+  const requestId = crypto.randomUUID()
+
+  logger.info('Fetching markets', {
+    requestId,
+    method: 'GET',
+    path: '/api/markets'
+  })
+
+  try {
+    const markets = await fetchMarkets()
+    return NextResponse.json({ success: true, data: markets })
+  } catch (error) {
+    logger.error('Failed to fetch markets', error as Error, { requestId })
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 })
+  }
+}
+```
+
+**Remember**: Backend patterns enable scalable, maintainable server-side applications. Choose patterns that fit your complexity level.
