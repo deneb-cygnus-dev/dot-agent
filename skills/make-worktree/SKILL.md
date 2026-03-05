@@ -3,7 +3,7 @@ name: make-worktree
 description: Create a git worktree with correct branch naming conventions and directory placement. Use when the user wants to start a new feature or fix branch using git worktrees. Handles branch creation, path resolution, submodule initialization, and mise trust automatically.
 argument-hint: "--name <branch-name> [--path <worktree-base-path>]"
 allowed-tools: Bash(git *), Bash(mise *), Bash(go *), Bash(npm *), Bash(ls *), Bash(find *), Bash(mkdir *), Bash(test *), Bash(cat *), Bash(basename *), Bash(dirname *)
-model: claude-haiku-4-5
+model: claude-sonnet-4-6
 ---
 
 # Git Worktree Creator
