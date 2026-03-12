@@ -111,6 +111,60 @@ Started: {date} | Completed: {date} | Duration: {N days}
 - Add header to the prompt-spec: `> STATUS: COMPLETE — {date}`
 - Update the Decisions Log with the ship decision (PROCEED/PIVOT/KILL)
 
+## Example Session Flow
+
+```text
+User: /phase-ship
+
+Agent: Verifying Phase 0: Extraction Validation...
+
+Acceptance Criteria:
+  ✓  CLI takes .md file → outputs JSON with characters    [MET]
+  ✓  70%+ accuracy on こころ (JP) — achieved 78%           [MET]
+  ✓  70%+ accuracy on Pride and Prejudice (EN) — 85%      [MET]
+  ✓  Character relationships as edges                      [MET]
+  ✓  Runs in < 60 seconds — achieved 42s                   [MET]
+
+All 5/5 criteria met. ✓
+
+Constraints:
+  ✓  All 6 constraints satisfied. ✓
+
+Open Questions:
+  1. SurrealDB vs Neo4j for Phase 1? — can this be deferred?
+
+User: Yes, defer to Phase 1.
+
+Agent: Phase 0: Extraction Validation is complete.
+
+Based on what you learned:
+  1. PROCEED to Phase 1 — the approach works, continue building
+  2. PIVOT — the approach works but the direction should change
+  3. KILL — the core assumption was invalidated, stop this product
+
+Which? (This is the most important decision in PDD.)
+
+User: 1 — PROCEED
+
+Agent: Now I need to ask you five questions for the learnings document:
+
+  1. "What assumptions were correct?"
+  2. "What assumptions were wrong?"
+  3. "What was harder than expected?"
+  4. "What was easier than expected?"
+  5. "What should the next phase know that isn't obvious?"
+
+[... user answers each question ...]
+
+Agent: Generated phases/extraction-validation/learnings.md
+  ✓ Outcome: PROCEED
+  ✓ Duration: 5 days (2026-03-11 → 2026-03-16)
+  ✓ All 5 learning sections filled
+  ✓ Prompt-spec marked COMPLETE
+
+  Next step: Run /phase-kick to start Phase 1.
+```
+
 ## Verification
 
 - [ ] All acceptance criteria are met

@@ -74,6 +74,12 @@ Read the Decisions Log. These are **resolved questions** — do NOT re-decide th
 
 If the build session encounters a situation covered by a past decision, follow it without discussion.
 
+```text
+Example: Decision Log says "Process chapter-by-chapter, not whole novel"
+→ When implementing extraction, split by chapter. Do NOT attempt whole-novel processing
+  even if the context window seems large enough.
+```
+
 ## Step 6: Execute the Build
 
 Build toward the selected criterion. At every point, apply these guards:
@@ -131,6 +137,19 @@ After the session, update the prompt-spec's Current State section:
   - `internal/extraction/pipeline.go` — chapter splitting (NEW)
 - **Runnable artifact:** `go run cmd/extract/main.go input.md > output.json`
 - **Notes:** Basic pipeline working, entity resolution not yet implemented
+```
+
+## End-of-Session Summary
+
+After updating Current State, display a brief summary:
+
+```text
+Session complete.
+  Target criterion: "CLI takes .md file path, outputs JSON with characters array"
+  Status: Implemented — ready for /phase-review verification
+  Files created: cmd/extract/main.go, internal/extraction/pipeline.go
+  Constraints respected: 4/4
+  Scope creep incidents: 0
 ```
 
 ## Verification
